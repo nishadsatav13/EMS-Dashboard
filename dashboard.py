@@ -1,88 +1,24 @@
 """
-NeoAI — Enterprise EMS Dashboard v7.0 (Simulator Embedded)
+NeoAI — Enterprise EMS Dashboard v8.0 (Simulator Embedded, All Components)
 """
 
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-import psycopg2
-import os
-import random
 import time
-from datetime import datetime
 
-# ── Page Configuration ───────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="NeoAI — Enterprise EMS",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ── Page Config ───────────────────────────────────────────────
+st.set_page_config(page_title="NeoAI EMS", page_icon="⚡", layout="wide")
 
-# ── Database Connection ──────────────────────────────────────────────────────
-DB_URL = os.getenv("DATABASE_URL")
+# ── Load datasets from repo ───────────────────────────────────
+battery_df     = pd.read_csv("battery_neoai_dataset.csv")
+pcs_df         = pd.read_csv("pcs_neoai_dataset.csv")
+xfmr_df        = pd.read_excel("transformer_neoai_dataset.xlsx")
+swgr_df        = pd.read_excel("switchgear_neoai_dataset.xlsx")
+tline_df       = pd.read_excel("transmission_line_neoai_dataset.xlsx")
 
-def push_fake_data(location):
-    """Simulates telemetry rows directly into Postgres."""
-    try:
-        conn = psycopg2.connect(DB_URL)
-        cur = conn.cursor()
-
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Example: Battery table
-        soc = random.uniform(40, 100)
-        soh = random.uniform(85, 100)
-        pwr = random.uniform(-50, 50)
-        temp = random.uniform(25, 40)
-
-        cur.execute("""
-            INSERT INTO battery (timestamp, location, state_of_charge_soc_pct,
-                                 state_of_health_soh_pct, battery_power_kw,
-                                 average_cell_temperature_c)
-            VALUES (%s,%s,%s,%s,%s,%s)
-        """, (now_str, location, soc, soh, pwr, temp))
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        st.error(f"Simulator error: {e}")
-
-def load_table(table_name, location, limit=80):
-    try:
-        conn = psycopg2.connect(DB_URL)
-        query = f'SELECT * FROM "{table_name}" WHERE location=%s ORDER BY timestamp DESC LIMIT %s'
-        df = pd.read_sql(query, conn, params=(location, limit))
-        conn.close()
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-        return df.iloc[::-1].reset_index(drop=True)
-    except Exception as e:
-        st.error(f"DB error: {e}")
-        return pd.DataFrame()
-
-def safe_val(df, col, default=0.0):
-    try:
-        if col in df.columns and len(df) > 0:
-            val = df[col].iloc[-1]
-            return float(val) if pd.notna(val) else default
-        return default
-    except Exception:
-        return default
-
-def safe_str(df, col, default="—"):
-    try:
-        if col in df.columns and len(df) > 0:
-            val = df[col].iloc[-1]
-            return str(val) if pd.notna(val) else default
-        return default
-    except Exception:
-        return default
-
-# ── Sidebar Navigation ──────────────────────────────────────────────────────
+# ── Sidebar ──────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("<h2>NeoAI EMS</h2>", unsafe_allow_html=True)
-    selected_location = st.selectbox("Select Plant Location", ["Prakasha_Nandurbar", "Bhandu_Rajasthan"])
+    location = st.selectbox("Select Plant Location", ["Prakasha_Nandurbar", "Bhandu_Rajasthan"])
     page = st.radio("Select Component View", [
         "🏠 Master Overview",
         "🔋 Battery Storage (LFP)",
@@ -94,28 +30,94 @@ with st.sidebar:
     ])
     refresh_rate = st.slider("Telemetry Refresh (sec)", 2, 10, 5)
 
-# ── Embedded Simulator ──────────────────────────────────────────────────────
-push_fake_data(selected_location)
+# ── Simulator Logic ──────────────────────────────────────────
+if "tick" not in st.session_state:
+    st.session_state.tick = 0
+st.session_state.tick += 1
 
-# ── Load Data from Postgres ──────────────────────────────────────────────────
-batt  = load_table("battery", selected_location)
+def get_row(df, location):
+    loc_df = df[df["location"] == location].reset_index(drop=True)
+    if len(loc_df) == 0:
+        return None
+    idx = st.session_state.tick % len(loc_df)
+    return loc_df.iloc[idx]
 
-if len(batt) == 0:
-    st.warning(f"⏳ Waiting for simulator to push data for {selected_location}...")
-    st.stop()
-
-# ── Example Master Overview KPIs ────────────────────────────────────────────
+# ── Master Overview ──────────────────────────────────────────
 if page == "🏠 Master Overview":
-    soc = safe_val(batt, "state_of_charge_soc_pct")
-    soh = safe_val(batt, "state_of_health_soh_pct")
-    pwr = safe_val(batt, "battery_power_kw")
-    temp = safe_val(batt, "average_cell_temperature_c")
+    batt_row = get_row(battery_df, location)
+    pcs_row  = get_row(pcs_df, location)
+    xfmr_row = get_row(xfmr_df, location)
 
-    st.metric("System SOC (%)", f"{soc:.1f}")
-    st.metric("System SOH (%)", f"{soh:.1f}")
-    st.metric("Active Power (kW)", f"{pwr:.1f}")
-    st.metric("Avg Cell Temp (°C)", f"{temp:.1f}")
+    if batt_row is not None:
+        st.metric("System SOC (%)", f"{batt_row['state_of_charge_soc_pct']:.1f}")
+        st.metric("System SOH (%)", f"{batt_row['state_of_health_soh_pct']:.1f}")
+        st.metric("Battery Power (kW)", f"{batt_row['battery_power_kw']:.1f}")
+    if pcs_row is not None:
+        st.metric("PCS Output (kW)", f"{pcs_row['active_power_kw']:.1f}")
+    if xfmr_row is not None:
+        st.metric("Transformer Load (%)", f"{xfmr_row['load_pct']:.1f}")
 
-# ── Auto Refresh ────────────────────────────────────────────────────────────
+# ── Battery Storage ──────────────────────────────────────────
+if page == "🔋 Battery Storage (LFP)":
+    row = get_row(battery_df, location)
+    if row is not None:
+        st.metric("SOC (%)", f"{row['state_of_charge_soc_pct']:.1f}")
+        st.metric("SOH (%)", f"{row['state_of_health_soh_pct']:.1f}")
+        st.metric("Power (kW)", f"{row['battery_power_kw']:.1f}")
+        st.metric("Avg Cell Temp (°C)", f"{row['average_cell_temperature_c']:.1f}")
+
+# ── PCS ──────────────────────────────────────────────────────
+if page == "⚡ Power Conversion (PCS)":
+    row = get_row(pcs_df, location)
+    if row is not None:
+        st.metric("Active Power (kW)", f"{row['active_power_kw']:.1f}")
+        st.metric("Reactive Power (kVAR)", f"{row['reactive_power_kvar']:.1f}")
+        st.metric("Frequency (Hz)", f"{row['frequency_hz']:.2f}")
+
+# ── Transformer ──────────────────────────────────────────────
+if page == "🔌 Distribution Transformer":
+    row = get_row(xfmr_df, location)
+    if row is not None:
+        st.metric("Load (%)", f"{row['load_pct']:.1f}")
+        st.metric("Oil Temp (°C)", f"{row['oil_temperature_c']:.1f}")
+        st.metric("Winding Temp (°C)", f"{row['winding_temperature_c']:.1f}")
+
+# ── Switchgear ───────────────────────────────────────────────
+if page == "🔧 Main Switchgear Panel":
+    row = get_row(swgr_df, location)
+    if row is not None:
+        st.metric("Breaker Status", row['breaker_status'])
+        st.metric("Bus Voltage (kV)", f"{row['bus_voltage_kv']:.2f}")
+        st.metric("Bus Current (A)", f"{row['bus_current_a']:.1f}")
+
+# ── Transmission Line ────────────────────────────────────────
+if page == "📡 Transmission & Grid Line":
+    row = get_row(tline_df, location)
+    if row is not None:
+        st.metric("Line Voltage (kV)", f"{row['line_voltage_kv']:.2f}")
+        st.metric("Line Current (A)", f"{row['line_current_a']:.1f}")
+        st.metric("Power Flow (MW)", f"{row['power_flow_mw']:.2f}")
+
+# ── Alarms & Faults ──────────────────────────────────────────
+if page == "🚨 Alarms & Faults":
+    batt_row = get_row(battery_df, location)
+    pcs_row  = get_row(pcs_df, location)
+    xfmr_row = get_row(xfmr_df, location)
+
+    alarms = []
+    if batt_row is not None and batt_row['average_cell_temperature_c'] > 38:
+        alarms.append("⚠️ Battery Overheating")
+    if pcs_row is not None and abs(pcs_row['frequency_hz'] - 50) > 0.5:
+        alarms.append("⚠️ PCS Frequency Deviation")
+    if xfmr_row is not None and xfmr_row['load_pct'] > 90:
+        alarms.append("⚠️ Transformer Overload")
+
+    if alarms:
+        for a in alarms:
+            st.error(a)
+    else:
+        st.success("✅ No active alarms")
+
+# ── Auto Refresh ─────────────────────────────────────────────
 time.sleep(refresh_rate)
 st.rerun()
