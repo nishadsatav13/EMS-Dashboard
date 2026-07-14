@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import time
+from datetime import datetime
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -121,6 +122,10 @@ with st.sidebar:
     st.markdown("<h2 style='color:#00d4aa'>⚡ NeoAI EMS</h2>",
                 unsafe_allow_html=True)
     st.markdown("*Neosol Energy Systems Pvt Ltd*")
+    
+    # --- LIVE DATE AND TIME ---
+    current_time = datetime.now().strftime("%Y-%m-%d | %H:%M:%S")
+    st.markdown(f"🕒 **System Time:** `{current_time}`")
     st.markdown("---")
 
     location = st.selectbox(
