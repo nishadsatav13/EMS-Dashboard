@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -123,8 +123,9 @@ with st.sidebar:
                 unsafe_allow_html=True)
     st.markdown("*Neosol Energy Systems Pvt Ltd*")
     
-    # --- LIVE DATE AND TIME ---
-    current_time = datetime.now().strftime("%Y-%m-%d | %H:%M:%S")
+    # --- LIVE DATE AND TIME (Forced to IST) ---
+    ist = timezone(timedelta(hours=5, minutes=30))
+    current_time = datetime.now(ist).strftime("%Y-%m-%d | %I:%M:%S %p")
     st.markdown(f"🕒 **System Time:** `{current_time}`")
     st.markdown("---")
 
