@@ -1,5 +1,5 @@
 """
-NeoAI — Enterprise EMS Dashboard v13.1
+NeoAI — Enterprise EMS Dashboard v13.2
 Simulator Embedded, All Components, Charts + Forecast & AI Advisory
 """
 
@@ -152,7 +152,6 @@ if page == "🔮 Forecast & AI Advisory":
     st.plotly_chart(fig, use_container_width=True)
 
     # Dispatch Optimizer (mock advisory text)
-    st.info(
+    advisory_text = (
         "**Dispatch Optimizer (AI Recommends – Human-Gated):**\n\n"
-        "Charge 8 MW until 14:00 → discharge 22 MW across 18:00–21:00 evening peak (₹8.9/kWh).\n"
-        "Expected gain
+        "Charge 8 MW until 14:00 → discharge 22 MW across 18:00
