@@ -1,29 +1,27 @@
-
-
 import pandas as pd
-import sqlite3
-import time
+import psycopg2
 import os
+import time
 from datetime import datetime
 
-INTERVAL_SEC  = 5
-DB_PATH       = "neoai_live.db"
-MAX_ROWS      = 1000  # Keep DB lightweight
+INTERVAL_SEC = 5
+MAX_ROWS = 1000
 
-# ── FIX: Adjusted paths to match your actual file extensions ─────────────────
+# Render/Heroku will inject DATABASE_URL into env vars
+DB_URL = os.getenv("DATABASE_URL")
+
 FILES = {
-    "battery":     r"C:\Users\admin\Documents\battery_neoai_dataset.csv",
-    "pcs":         r"C:\Users\admin\Documents\pcs_neoai_dataset.csv",
-    "transformer": r"C:\Users\admin\Documents\transformer_neoai_dataset.csv",
-    "switchgear":  r"C:\Users\admin\Documents\switchgear_neoai_dataset.xlsx", 
-    "tline":       r"C:\Users\admin\Documents\transmission_line_neoai_dataset.xlsx",
+    "battery":     "battery_neoai_dataset.csv",
+    "pcs":         "pcs_neoai_dataset.csv",
+    "transformer": "transformer_neoai_dataset.csv",
+    "switchgear":  "switchgear_neoai_dataset.xlsx",
+    "tline":       "transmission_line_neoai_dataset.xlsx",
 }
 
 def load_and_prep_datasets():
     datasets = {}
     for name, path in FILES.items():
         try:
-            # Dynamically read CSV or Excel based on the file extension
             if path.endswith(".csv"):
                 df = pd.read_csv(path, low_memory=False)
             elif path.endswith(".xlsx"):
@@ -31,13 +29,12 @@ def load_and_prep_datasets():
             else:
                 print(f" ✗ {name:12s} ERROR: Unsupported file type.")
                 continue
-            
-            # Smart Sorting: Force SOC to discharge logically if it's the battery dataset
+
             if name == "battery" and "state_of_charge_soc_pct" in df.columns:
                 df = df.sort_values(by="state_of_charge_soc_pct", ascending=False).reset_index(drop=True)
             elif "timestamp" in df.columns:
                 df = df.sort_values(by="timestamp").reset_index(drop=True)
-                
+
             datasets[name] = df
             print(f" ✓ {name:12s} loaded ({len(df)} rows)")
         except Exception as e:
@@ -49,39 +46,27 @@ def init_db(conn, datasets):
     for name, df in datasets.items():
         cols = []
         for col in df.columns:
-            if pd.api.types.is_integer_dtype(df[col]): type_str = "INTEGER"
+            if pd.api.types.is_integer_dtype(df[col]): type_str = "INT"
             elif pd.api.types.is_float_dtype(df[col]): type_str = "REAL"
             else: type_str = "TEXT"
             cols.append(f'"{col}" {type_str}')
         cur.execute(f'CREATE TABLE IF NOT EXISTS {name} ({", ".join(cols)})')
-    
-    cur.execute("CREATE TABLE IF NOT EXISTS meta_tracker (component TEXT, location TEXT, current_row INTEGER)")
-    conn.commit()
-
-def get_row_idx(conn, comp, loc):
-    cur = conn.cursor()
-    cur.execute("SELECT current_row FROM meta_tracker WHERE component=? AND location=?", (comp, loc))
-    res = cur.fetchone()
-    return res[0] if res else 0
-
-def update_row_idx(conn, comp, loc, idx):
-    cur = conn.cursor()
-    cur.execute("DELETE FROM meta_tracker WHERE component=? AND location=?", (comp, loc))
-    cur.execute("INSERT INTO meta_tracker VALUES (?, ?, ?)", (comp, loc, idx))
     conn.commit()
 
 def main():
     print("=" * 55)
-    print("  NeoAI Multi-Site Simulator Started")
+    print("  NeoAI Multi-Site Simulator Started (Postgres)")
     print("=" * 55)
+
     datasets = load_and_prep_datasets()
-    if not datasets: 
+    if not datasets:
         print("No datasets loaded. Halting.")
         return
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg2.connect(DB_URL)
     init_db(conn, datasets)
-    
+    cur = conn.cursor()
+
     locations = ["Prakasha_Nandurbar", "Bhandu_Rajasthan"]
     print(f"\nStreaming data for sites: {locations}")
     print("Press Ctrl+C to stop.\n")
@@ -90,40 +75,38 @@ def main():
     while True:
         tick += 1
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         for loc in locations:
             for name, df in datasets.items():
                 if "location" not in df.columns: continue
-                
-                # Filter df by location
                 loc_df = df[df["location"] == loc].reset_index(drop=True)
                 if len(loc_df) == 0: continue
-                
-                idx = get_row_idx(conn, name, loc) % len(loc_df)
+
+                idx = tick % len(loc_df)
                 row = loc_df.iloc[idx].copy()
-                row["timestamp"] = now_str # Override with live time
-                
-                # Insert into DB
+                row["timestamp"] = now_str
+
                 cols = ", ".join([f'"{c}"' for c in row.index])
-                vals = [str(v) if isinstance(v, bool) else v for v in row.values]
-                plcs = ", ".join(["?" for _ in vals])
-                conn.execute(f'INSERT INTO {name} ({cols}) VALUES ({plcs})', vals)
-                
+                plcs = ", ".join(["%s" for _ in row.values])
+                vals = list(row.values)
+
+                cur.execute(f'INSERT INTO {name} ({cols}) VALUES ({plcs})', vals)
+
                 # Keep DB small
-                conn.execute(f"""DELETE FROM {name} WHERE location='{loc}' AND rowid NOT IN 
-                                 (SELECT rowid FROM {name} WHERE location='{loc}' ORDER BY rowid DESC LIMIT {MAX_ROWS})""")
-                
-                update_row_idx(conn, name, loc, idx + 1)
-        
+                cur.execute(f"""
+                    DELETE FROM {name}
+                    WHERE location=%s AND ctid NOT IN (
+                        SELECT ctid FROM {name}
+                        WHERE location=%s ORDER BY ctid DESC LIMIT %s
+                    )
+                """, (loc, loc, MAX_ROWS))
+
         conn.commit()
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Tick #{tick:04d} -> Pushed data for Prakasha & Bhandu")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Tick #{tick:04d} -> Pushed data for sites")
         time.sleep(INTERVAL_SEC)
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nSimulator stopped manually.")
-
-
-
+        print("\nSimulator stopped manually.")
