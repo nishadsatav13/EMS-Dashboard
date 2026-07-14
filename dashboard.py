@@ -139,7 +139,7 @@ with st.sidebar:
     ])
 
     refresh_rate = st.slider("Auto-refresh (seconds)", 5, 60, 10)
-    live_mode    = st.toggle("Live Mode", value=False)
+   live_mode    = st.toggle("Live Mode", value=False)
 
     st.markdown("---")
     st.markdown(f"**Tick:** `{st.session_state.tick}`")
