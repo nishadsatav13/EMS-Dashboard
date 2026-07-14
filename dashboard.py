@@ -8,6 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
+import time
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -138,11 +139,9 @@ with st.sidebar:
         "🔮 Forecast & AI Advisory",
     ])
 
-    refresh_rate = st.slider("Auto-refresh (seconds)", 5, 60, 10)
-   live_mode    = st.toggle("Live Mode", value=False)
-
     st.markdown("---")
     st.markdown(f"**Tick:** `{st.session_state.tick}`")
+    st.markdown("🟢 **Live** — updates every 3s")
 
 # ── Helper: get current simulated row ────────────────────────────────────────
 def get_row(df, loc):
@@ -409,7 +408,6 @@ elif page == "🔌 Distribution Transformer":
         if row is None:
             st.warning("No transformer data for this location.")
         else:
-            # Use generic column search in case column names differ
             def find_col(df, patterns):
                 for p in patterns:
                     for c in df.columns:
@@ -709,10 +707,8 @@ elif page == "🔮 Forecast & AI Advisory":
     st.plotly_chart(fig2, use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LIVE REFRESH — must be at the very bottom after all content renders
+# ALWAYS-ON LIVE REFRESH — 3 second tick, no toggle needed
 # ═══════════════════════════════════════════════════════════════════════════════
-if live_mode:
-    import time
-    time.sleep(refresh_rate)
-    st.session_state.tick += 1
-    st.rerun()
+time.sleep(3)
+st.session_state.tick += 1
+st.rerun()
