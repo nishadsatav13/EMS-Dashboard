@@ -1,5 +1,5 @@
 """
-NeoAI — Enterprise EMS Dashboard v13.0
+NeoAI — Enterprise EMS Dashboard v13.1
 Simulator Embedded, All Components, Charts + Forecast & AI Advisory
 """
 
@@ -137,15 +137,22 @@ if page == "🚨 Alarms & Faults":
 
 if page == "🔮 Forecast & AI Advisory":
     st.markdown("### 🔮 Forecast & AI Advisory")
+
+    # Forecast chart (mock data)
     hours = np.arange(0, 24)
     pv_forecast = np.sin(hours/24*2*np.pi)*30 + 20
     load_forecast = np.cos(hours/24*2*np.pi)*10 + 25
     price_forecast = np.random.normal(6, 0.5, 24)
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hours, y=pv_forecast, name="PV Forecast", line=dict(color="yellow")))
     fig.add_trace(go.Scatter(x=hours, y=load_forecast, name="Load Forecast", line=dict(color="cyan")))
     fig.add_trace(go.Scatter(x=hours, y=price_forecast, name="Price Forecast", line=dict(color="magenta")))
     fig.update_layout(title="Next 24h Forecast (Probabilistic)", xaxis_title="Hour", yaxis_title="MW / ₹", template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
-    st.info("**Dispatch Optimizer (AI Recommends – Human-Gated):**\n\n"
-            "Charge 8 MW until 14:00 → discharge 22 MW across 18:00–21:
+
+    # Dispatch Optimizer (mock advisory text)
+    st.info(
+        "**Dispatch Optimizer (AI Recommends – Human-Gated):**\n\n"
+        "Charge 8 MW until 14:00 → discharge 22 MW across 18:00–21:00 evening peak (₹8.9/kWh).\n"
+        "Expected gain
