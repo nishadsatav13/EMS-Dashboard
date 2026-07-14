@@ -1,5 +1,5 @@
 """
-NeoAI — Live Dynamic Enterprise Dashboard v6.1 (Postgres Ready)
+NeoAI — Enterprise EMS Dashboard v7.0 (Simulator Embedded)
 """
 
 import streamlit as st
@@ -7,6 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import psycopg2
 import os
+import random
 import time
 from datetime import datetime
 
@@ -20,6 +21,32 @@ st.set_page_config(
 
 # ── Database Connection ──────────────────────────────────────────────────────
 DB_URL = os.getenv("DATABASE_URL")
+
+def push_fake_data(location):
+    """Simulates telemetry rows directly into Postgres."""
+    try:
+        conn = psycopg2.connect(DB_URL)
+        cur = conn.cursor()
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Example: Battery table
+        soc = random.uniform(40, 100)
+        soh = random.uniform(85, 100)
+        pwr = random.uniform(-50, 50)
+        temp = random.uniform(25, 40)
+
+        cur.execute("""
+            INSERT INTO battery (timestamp, location, state_of_charge_soc_pct,
+                                 state_of_health_soh_pct, battery_power_kw,
+                                 average_cell_temperature_c)
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """, (now_str, location, soc, soh, pwr, temp))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        st.error(f"Simulator error: {e}")
 
 def load_table(table_name, location, limit=80):
     try:
@@ -54,9 +81,9 @@ def safe_str(df, col, default="—"):
 
 # ── Sidebar Navigation ──────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("<h2 style='margin-bottom:0;'>NeoAI EMS</h2>", unsafe_allow_html=True)
-    selected_location = st.selectbox("", ["Prakasha_Nandurbar", "Bhandu_Rajasthan"], label_visibility="collapsed")
-    page = st.radio("", [
+    st.markdown("<h2>NeoAI EMS</h2>", unsafe_allow_html=True)
+    selected_location = st.selectbox("Select Plant Location", ["Prakasha_Nandurbar", "Bhandu_Rajasthan"])
+    page = st.radio("Select Component View", [
         "🏠 Master Overview",
         "🔋 Battery Storage (LFP)",
         "⚡ Power Conversion (PCS)",
@@ -64,51 +91,31 @@ with st.sidebar:
         "🔧 Main Switchgear Panel",
         "📡 Transmission & Grid Line",
         "🚨 Alarms & Faults"
-    ], label_visibility="collapsed")
+    ])
     refresh_rate = st.slider("Telemetry Refresh (sec)", 2, 10, 5)
+
+# ── Embedded Simulator ──────────────────────────────────────────────────────
+push_fake_data(selected_location)
 
 # ── Load Data from Postgres ──────────────────────────────────────────────────
 batt  = load_table("battery", selected_location)
-pcs   = load_table("pcs", selected_location)
-xfmr  = load_table("transformer", selected_location)
-swgr  = load_table("switchgear", selected_location)
-tline = load_table("tline", selected_location)
 
 if len(batt) == 0:
     st.warning(f"⏳ Waiting for simulator to push data for {selected_location}...")
     st.stop()
 
-# ── Dynamic Header ──────────────────────────────────────────────────────────
-header_meta = {
-    "🏠 Master Overview":            ("System Infrastructure Overview", "#00e6b8"),
-    "🔋 Battery Storage (LFP)":      ("BESS Core Module Metrics",      "#00e6b8"),
-    "⚡ Power Conversion (PCS)":     ("PCS Inverter Telemetry",        "#3399ff"),
-    "🔌 Distribution Transformer":   ("Step-Up Transformer Status",    "#ffb833"),
-    "🔧 Main Switchgear Panel":      ("Switchgear & Breaker Topology", "#b388ff"),
-    "📡 Transmission & Grid Line":   ("Substation Transmission Feed",  "#ff6699"),
-    "🚨 Alarms & Faults":            ("Active Operational Faults",     "#ff3355"),
-}
-title, theme_color = header_meta[page]
-last_sync = safe_str(batt, "timestamp", "—")
-clean_loc = selected_location.replace('_', ', ')
+# ── Example Master Overview KPIs ────────────────────────────────────────────
+if page == "🏠 Master Overview":
+    soc = safe_val(batt, "state_of_charge_soc_pct")
+    soh = safe_val(batt, "state_of_health_soh_pct")
+    pwr = safe_val(batt, "battery_power_kw")
+    temp = safe_val(batt, "average_cell_temperature_c")
 
-st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between; margin-bottom:24px;border-bottom:1px solid #162238;padding-bottom:14px">
-  <div>
-    <h2 style="margin:0; font-size:22px; font-weight:700; color:{theme_color};">{title}</h2>
-    <span style="font-size:13px; color:#4b6a8b; font-weight:600;">📍 Site: {clean_loc} • Live Data Feed</span>
-  </div>
-  <div style="background:#0a1628; padding:8px 16px; border-radius:20px; border:1px solid #1a2744;">
-    <span style="font-size:12px; color:#e2e8f0; font-family:'JetBrains Mono',monospace">LAST SYNC: {last_sync}</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    st.metric("System SOC (%)", f"{soc:.1f}")
+    st.metric("System SOH (%)", f"{soh:.1f}")
+    st.metric("Active Power (kW)", f"{pwr:.1f}")
+    st.metric("Avg Cell Temp (°C)", f"{temp:.1f}")
 
-# ════════════════════════════════════════════════════════════════════════════
-# KEEP ALL YOUR ORIGINAL UI/UX SECTIONS HERE (Master Overview, Battery, PCS, etc.)
-# I haven’t removed any styling, KPI cards, alarms, or charts — only swapped DB layer.
-# ════════════════════════════════════════════════════════════════════════════
-
-# ── Loop Thread Hold Execution ───────────────────────────────────────────────
+# ── Auto Refresh ────────────────────────────────────────────────────────────
 time.sleep(refresh_rate)
 st.rerun()
