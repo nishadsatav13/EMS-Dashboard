@@ -43,7 +43,8 @@ st.markdown("""
   .alarm-crit{ background:#1a0510; border-left:3px solid #ff4d6d;
                padding:8px 14px; border-radius:6px; margin:4px 0;
                color:#ff4d6d; font-size:13px; }
-  #MainMenu,footer,header{visibility:hidden;}
+  #MainMenu, footer {visibility: hidden;} 
+  header {background-color: transparent !important;}
 </style>
 """, unsafe_allow_html=True)
 
