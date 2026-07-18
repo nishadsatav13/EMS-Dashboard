@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 from datetime import datetime, timezone, timedelta
-from smart_agent import generate_rag_advisory
+from agent.smart_agent import generate_rag_advisory
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
