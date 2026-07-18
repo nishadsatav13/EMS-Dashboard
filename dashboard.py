@@ -707,6 +707,24 @@ elif page == "🔮 Forecast & AI Advisory":
             active_row = row
             break
 
+    # =====================================================
+    # TEMPORARY TEST MODE (REMOVE AFTER TESTING)
+    # =====================================================
+    if active_row is None:
+        test_row = get_row(battery_df, location)
+
+        if test_row is not None:
+            active_row = test_row.copy()
+            fault_component = "Battery"
+
+            active_row["is_fault"] = 1
+            active_row["fault_type"] = "Cell Over Temperature"
+
+            # Optional: make telemetry look realistic
+            active_row["temperature"] = 72
+            active_row["soc"] = 91
+    # =====================================================
+
     if active_row is not None:
 
         fault_name = sv(active_row, "fault_type", "Unknown Anomaly")
