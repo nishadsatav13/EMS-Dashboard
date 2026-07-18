@@ -22,3 +22,4 @@ chromadb
 sentence-transformers
 torch
 transformers
+torchvision
