@@ -132,7 +132,6 @@ pcs_df        = dfs["pcs_live"]
 xfmr_df       = dfs["transformer_live"]
 swgr_df       = dfs["switchgear_live"]
 tline_df      = dfs["tline_live"]
-
 # ── Session state (simulator tick) ────────────────────────────────────────────
 if "tick" not in st.session_state:
     st.session_state.tick = 0
