@@ -5,6 +5,7 @@ No separate simulator.py needed
 """
 
 import streamlit as st
+import os
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -66,53 +67,71 @@ def sv(row, col, default=0):
         return default
 
 # ── Load all datasets (cached) ────────────────────────────────────────────────
+# ── Helper to track file changes ──────────────────────────────────────────────
+def get_file_mtimes():
+    files = [
+        "battery_neoai_live.parquet", "pcs_neoai_live.parquet", 
+        "transformer_neoai_live.parquet", "switchgear_neoai_live.parquet", 
+        "transmission_line_neoai_live.parquet"
+    ]
+    return {f: os.path.getmtime(f) if os.path.exists(f) else 0 for f in files}
+
+# ── Enhanced Loader with Timestamp Watcher ────────────────────────────────────
 @st.cache_data(show_spinner="Loading NeoAI datasets…")
-def load_data():
+def load_data(file_timestamps):
     dfs = {}
+    # Keep all your original try/except blocks here
     try:
-        dfs["battery"] = pd.read_csv("battery_neoai_dataset.csv",
-                                      parse_dates=["timestamp"])
+        dfs["battery_hist"] = pd.read_parquet("battery_neoai_historical.parquet")
+        dfs["battery_live"] = pd.read_parquet("battery_neoai_live.parquet")
     except Exception as e:
         st.error(f"Battery dataset error: {e}")
-        dfs["battery"] = pd.DataFrame()
+        dfs["battery_hist"] = pd.DataFrame()
+        dfs["battery_live"] = pd.DataFrame()
 
     try:
-        dfs["pcs"] = pd.read_csv("pcs_neoai_dataset.csv",
-                                  parse_dates=["timestamp"])
+        dfs["pcs_hist"] = pd.read_parquet("pcs_neoai_historical.parquet")
+        dfs["pcs_live"] = pd.read_parquet("pcs_neoai_live.parquet")
     except Exception as e:
         st.error(f"PCS dataset error: {e}")
-        dfs["pcs"] = pd.DataFrame()
+        dfs["pcs_hist"] = pd.DataFrame()
+        dfs["pcs_live"] = pd.DataFrame()
 
     try:
-        dfs["transformer"] = pd.read_csv("transformer_neoai_dataset.csv",
-                                          parse_dates=["timestamp"])
+        dfs["transformer_hist"] = pd.read_parquet("transformer_neoai_historical.parquet")
+        dfs["transformer_live"] = pd.read_parquet("transformer_neoai_live.parquet")
     except Exception as e:
-        st.warning(f"Transformer dataset not found: {e}")
-        dfs["transformer"] = pd.DataFrame()
+        st.error(f"Transformer dataset error: {e}")
+        dfs["transformer_hist"] = pd.DataFrame()
+        dfs["transformer_live"] = pd.DataFrame()
 
     try:
-        dfs["switchgear"] = pd.read_excel("switchgear_neoai_dataset.xlsx")
-        dfs["switchgear"]["timestamp"] = pd.to_datetime(
-            dfs["switchgear"]["timestamp"])
+        dfs["switchgear_hist"] = pd.read_parquet("switchgear_neoai_historical.parquet")
+        dfs["switchgear_live"] = pd.read_parquet("switchgear_neoai_live.parquet")
     except Exception as e:
         st.error(f"Switchgear dataset error: {e}")
-        dfs["switchgear"] = pd.DataFrame()
+        dfs["switchgear_hist"] = pd.DataFrame()
+        dfs["switchgear_live"] = pd.DataFrame()
 
     try:
-        dfs["tline"] = pd.read_excel("transmission_line_neoai_dataset.xlsx")
-        dfs["tline"]["timestamp"] = pd.to_datetime(dfs["tline"]["timestamp"])
+        dfs["tline_hist"] = pd.read_parquet("transmission_line_neoai_historical.parquet")
+        dfs["tline_live"] = pd.read_parquet("transmission_line_neoai_live.parquet")
     except Exception as e:
         st.error(f"Transmission line dataset error: {e}")
-        dfs["tline"] = pd.DataFrame()
+        dfs["tline_hist"] = pd.DataFrame()
+        dfs["tline_live"] = pd.DataFrame()
 
     return dfs
 
-dfs = load_data()
-battery_df    = dfs["battery"]
-pcs_df        = dfs["pcs"]
-xfmr_df       = dfs["transformer"]
-swgr_df       = dfs["switchgear"]
-tline_df      = dfs["tline"]
+# Call the loader with the timestamps
+dfs = load_data(file_timestamps=get_file_mtimes())
+
+# Default to live datasets
+battery_df    = dfs["battery_live"]
+pcs_df        = dfs["pcs_live"]
+xfmr_df       = dfs["transformer_live"]
+swgr_df       = dfs["switchgear_live"]
+tline_df      = dfs["tline_live"]
 
 # ── Session state (simulator tick) ────────────────────────────────────────────
 if "tick" not in st.session_state:
