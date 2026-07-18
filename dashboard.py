@@ -1,8 +1,4 @@
-"""
-NeoAI — Enterprise EMS Dashboard
-Streamlit Cloud ready — reads datasets from repo, simulates live data
-No separate simulator.py needed
-"""
+
 
 import streamlit as st
 import os
@@ -11,6 +7,7 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 from datetime import datetime, timezone, timedelta
+from smart_agent import generate_rag_advisory
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -133,8 +130,16 @@ xfmr_df       = dfs["transformer_live"]
 swgr_df       = dfs["switchgear_live"]
 tline_df      = dfs["tline_live"]
 # ── Session state (simulator tick) ────────────────────────────────────────────
+# ── Session state (simulator tick) ────────────────────────────────────────────
 if "tick" not in st.session_state:
     st.session_state.tick = 0
+
+# ── AI Cache ─────────────────────────────────────────────────────────────────
+if "last_fault" not in st.session_state:
+    st.session_state.last_fault = None
+
+if "last_advice" not in st.session_state:
+    st.session_state.last_advice = None
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -677,70 +682,77 @@ elif page == "🚨 Alarms & Faults":
 elif page == "🔮 Forecast & AI Advisory":
     st.markdown("## 🔮 Forecast & AI Advisory")
 
-    hours         = np.arange(0, 24)
-    pv_forecast   = np.clip(np.sin(hours / 24 * 2 * np.pi) * 30 + 20, 0, None)
-    load_forecast = np.cos(hours / 24 * 2 * np.pi) * 10 + 25
-    np.random.seed(st.session_state.tick % 100)
-    price_forecast = np.random.normal(6, 0.5, 24)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=hours, y=pv_forecast,
-                             name="PV Forecast (kW)",
-                             line=dict(color="#ffb347", width=2)))
-    fig.add_trace(go.Scatter(x=hours, y=load_forecast,
-                             name="Load Forecast (kW)",
-                             line=dict(color="#4a9eff", width=2)))
-    fig.add_trace(go.Scatter(x=hours, y=price_forecast,
-                             name="Price Forecast (₹/kWh)",
-                             line=dict(color="#a78bfa", width=2)))
-    fig.update_layout(**PLOT_CFG,
-                      title="Next 24h Forecast (Probabilistic)",
-                      xaxis_title="Hour of Day",
-                      yaxis_title="kW / ₹/kWh",
-                      height=320)
-    st.plotly_chart(fig, use_container_width=True)
+    # ... [Keep your existing forecast charts here] ...
 
     st.markdown("---")
-    st.markdown("### 🤖 AI Dispatch Recommendation *(Human-Gated)*")
+    st.markdown("### 🤖 Autonomous ABB Expert Agent")
 
-    batt_r = get_row(battery_df, location)
-    soc_now = sv(batt_r, "state_of_charge_soc_pct", 50) if batt_r is not None else 50
+    # Find the first component with an active fault
+    fault_component = None
+    active_row = None
 
-    if soc_now < 30:
-        advice = "🔋 SOC is low ({:.1f}%). **Charge from grid now** during off-peak (00:00–06:00) to save cost.".format(soc_now)
-    elif soc_now > 80:
-        advice = "⚡ SOC is high ({:.1f}%). **Discharge now** during evening peak (18:00–22:00) to maximise savings.".format(soc_now)
+    components = [
+        ("Battery", battery_df),
+        ("PCS", pcs_df),
+        ("Transformer", xfmr_df),
+        ("Switchgear", swgr_df),
+        ("Transmission Line", tline_df)
+    ]
+
+    for name, df in components:
+        row = get_row(df, location)
+
+        if row is not None and int(sv(row, "is_fault", 0)) == 1:
+            fault_component = name
+            active_row = row
+            break
+
+    if active_row is not None:
+
+        fault_name = sv(active_row, "fault_type", "Unknown Anomaly")
+        telemetry = active_row.to_dict()
+
+        st.error(f"🚨 **Critical Alert Detected:** {fault_name}")
+
+        current_fault = f"{fault_component}:{fault_name}"
+
+        # Call AI only when the fault changes
+        if st.session_state.last_fault != current_fault:
+
+            with st.spinner("ABB Agent is consulting the manual..."):
+
+                advice = generate_rag_advisory(
+                    f"""
+Component: {fault_component}
+
+Fault: {fault_name}
+
+Telemetry:
+{telemetry}
+"""
+                )
+
+            st.session_state.last_fault = current_fault
+            st.session_state.last_advice = advice
+
+        else:
+            advice = st.session_state.last_advice
+
+        # Display AI Result
+        st.write(f"**Severity:** `{advice.severity}`")
+        st.write(f"**Matched Component:** {advice.matched_component}")
+        st.write(f"**Risk Analysis:** {advice.risk_analysis}")
+
+        st.write("**Required Actions:**")
+        for action in advice.actions_required:
+            st.markdown(f"- ✅ {action}")
+
     else:
-        advice = "✅ SOC is optimal ({:.1f}%). **Maintain** current charge level. Discharge during peak tariff (12:00–22:00).".format(soc_now)
+        # Clear cache when system returns to normal
+        st.session_state.last_fault = None
+        st.session_state.last_advice = None
 
-    st.info(advice)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Approve & Execute", type="primary"):
-            st.success("Command approved and sent to EMS.")
-    with col2:
-        if st.button("❌ Reject"):
-            st.warning("Command rejected.")
-
-    st.markdown("---")
-    st.markdown("### Estimated Savings")
-    savings_df = pd.DataFrame({
-        "Hour": hours,
-        "Estimated Savings (₹)": np.clip(
-            (price_forecast - 4.5) * np.abs(load_forecast) * 0.3, 0, None
-        )
-    })
-    fig2 = go.Figure(go.Bar(
-        x=savings_df["Hour"],
-        y=savings_df["Estimated Savings (₹)"],
-        marker_color="#00d4aa",
-    ))
-    fig2.update_layout(**PLOT_CFG,
-                       title="Hourly Estimated Peak-Shaving Savings (₹)",
-                       height=220)
-    st.plotly_chart(fig2, use_container_width=True)
-
+        st.success("✅ System Nominal. No expert intervention required.")
 # ═══════════════════════════════════════════════════════════════════════════════
 # ALWAYS-ON LIVE REFRESH — 3 second tick, no toggle needed
 # ═══════════════════════════════════════════════════════════════════════════════

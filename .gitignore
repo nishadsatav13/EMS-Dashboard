@@ -1,3 +1,39 @@
-neoai_live.db
+# =========================
+# Python
+# =========================
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Environment Variables (contains API keys)
+.env
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# Streamlit cache
+.streamlit/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
 *.log
