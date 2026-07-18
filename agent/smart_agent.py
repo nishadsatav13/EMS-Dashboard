@@ -138,10 +138,10 @@ Rules:
 4. Identify component.
 5. Assess severity.
 6. Explain risk.
-7.Return ONLY plain English.
-8.Do NOT use tool calling.
-9.Do NOT return JSON.
-10.Do NOT use function calling.
+7. Return ONLY plain English.
+8. Do NOT use tool calling.
+9. Do NOT return JSON.
+10. Do NOT use function calling.
 
 OEM MANUAL:
 
@@ -159,23 +159,23 @@ Incoming Telemetry:
             ]
         )
 
-       pipeline = prompt | structured_llm
+        pipeline = prompt | structured_llm
 
-response = pipeline.invoke(
-    {
-        "context": context_text,
-        "alert": telemetry_alert
-    }
-)
+        response = pipeline.invoke(
+            {
+                "context": context_text,
+                "alert": telemetry_alert
+            }
+        )
 
-print(response.content)
+        print(response.content)
 
-return BESSAdvisorySchema(
-    severity="INFO",
-    matched_component="TEST",
-    risk_analysis=response.content,
-    actions_required=["Generated successfully"]
-)
+        return BESSAdvisorySchema(
+            severity="INFO",
+            matched_component="TEST",
+            risk_analysis=response.content,
+            actions_required=["Generated successfully"]
+        )
 
     except Exception as e:
 
