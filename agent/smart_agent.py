@@ -1,5 +1,7 @@
 import os
 import json
+import traceback
+from pathlib import Path
 from typing import List, Literal
 
 from dotenv import load_dotenv
@@ -21,41 +23,41 @@ groq_api_key = os.getenv("GROQ_API_KEY")
 
 if not groq_api_key:
     raise ValueError(
-        "❌ GROQ_API_KEY not found. Create a .env file and add your Groq API key."
+        "❌ GROQ_API_KEY not found. Configure it in Streamlit Secrets or .env"
     )
 
 
 # ============================================================================
-# Connect to Groq LLM
+# Connect to Groq
 # ============================================================================
 
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     api_key=groq_api_key,
-    temperature=0.0
+    temperature=0.0,
 )
 
 
 # ============================================================================
-# Structured Output Schema
+# Structured Output
 # ============================================================================
 
 class BESSAdvisorySchema(BaseModel):
 
     severity: Literal["INFO", "WARNING", "CRITICAL"] = Field(
-        description="Calculated severity based on the OEM manual."
+        description="Calculated severity."
     )
 
     matched_component: str = Field(
-        description="Detected hardware component."
+        description="Detected ABB component."
     )
 
     risk_analysis: str = Field(
-        description="Technical explanation of the detected problem."
+        description="Technical explanation."
     )
 
     actions_required: List[str] = Field(
-        description="Immediate operator actions."
+        description="Operator actions."
     )
 
 
@@ -63,22 +65,28 @@ structured_llm = llm.with_structured_output(BESSAdvisorySchema)
 
 
 # ============================================================================
-# Connect to Local Chroma Vector Database
+# Vector Database
 # ============================================================================
 
-print("[SYSTEM] Connecting to Chroma Vector Database...")
+print("[NeoAI] Loading embedding model...")
 
 embeddings = HuggingFaceEmbeddings(
     model_name="all-MiniLM-L6-v2"
 )
 
-
-from pathlib import Path
-
 BASE_DIR = Path(__file__).parent
 
+VECTOR_PATH = BASE_DIR / "bess_vector_db"
+
+print(f"[NeoAI] Vector DB path: {VECTOR_PATH}")
+
+if not VECTOR_PATH.exists():
+    raise FileNotFoundError(
+        f"Vector database not found at {VECTOR_PATH}"
+    )
+
 vector_db = Chroma(
-    persist_directory=str(BASE_DIR / "bess_vector_db"),
+    persist_directory=str(VECTOR_PATH),
     embedding_function=embeddings
 )
 
@@ -86,83 +94,100 @@ retriever = vector_db.as_retriever(
     search_kwargs={"k": 3}
 )
 
+print("[NeoAI] Chroma connected successfully.")
+
 
 # ============================================================================
-# RAG Advisory Function
+# RAG Function
 # ============================================================================
 
-def generate_rag_advisory(telemetry_alert: str) -> BESSAdvisorySchema:
+def generate_rag_advisory(
+    telemetry_alert: str
+) -> BESSAdvisorySchema:
 
-    print(f"[SYSTEM] Searching OEM Manual...\n")
+    try:
 
-    retrieved_docs = retriever.invoke(telemetry_alert)
+        print("\n==============================")
+        print("[NeoAI] Incoming Alert")
+        print(telemetry_alert)
+        print("==============================")
 
-    context_text = "\n\n".join(
-        doc.page_content for doc in retrieved_docs
-    )
+        retrieved_docs = retriever.invoke(telemetry_alert)
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """
-You are the ABB BESS Expert Agent for the NeoAI EMS Dashboard.
+        print(f"[NeoAI] Retrieved {len(retrieved_docs)} document(s).")
 
-Your task is to analyze incoming telemetry using ONLY the retrieved OEM manual.
+        context_text = "\n\n".join(
+            doc.page_content
+            for doc in retrieved_docs
+        )
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
+You are the ABB BESS Expert Agent.
+
+Use ONLY the retrieved OEM manual.
 
 Rules:
 
-1. Never invent information.
-2. Base every conclusion only on the retrieved manual.
-3. Identify the affected ABB component.
-4. Assess severity.
-5. Explain the technical risk.
-6. Provide clear operator actions.
+1. Never hallucinate.
+2. Never invent information.
+3. Base every answer only on the OEM manual.
+4. Identify component.
+5. Assess severity.
+6. Explain risk.
+7. Suggest operator actions.
 
 OEM MANUAL:
 
 {context}
 """
-            ),
-
-            (
-                "user",
-                """
+                ),
+                (
+                    "user",
+                    """
 Incoming Telemetry:
 
 {alert}
 """
-            )
-        ]
-    )
+                )
+            ]
+        )
 
-    pipeline = prompt | structured_llm
+        pipeline = prompt | structured_llm
 
-    try:
-
-        return pipeline.invoke(
+        response = pipeline.invoke(
             {
                 "context": context_text,
                 "alert": telemetry_alert
             }
         )
 
+        print("[NeoAI] Advisory generated successfully.")
+
+        return response
+
     except Exception as e:
 
-        print(e)
+        print("\n==============================")
+        print("[NeoAI ERROR]")
+        traceback.print_exc()
+        print("==============================")
 
         return BESSAdvisorySchema(
 
             severity="CRITICAL",
 
-            matched_component="Unknown",
+            matched_component=f"ERROR: {type(e).__name__}",
 
-            risk_analysis="Unable to generate advisory because the AI pipeline failed.",
+            risk_analysis=str(e),
 
             actions_required=[
-                "Inspect system logs.",
-                "Verify Groq API connectivity.",
-                "Review retrieved OEM documentation manually."
+                "Open Streamlit logs.",
+                "Inspect traceback above.",
+                "Resolve the reported exception."
             ]
         )
 
@@ -173,18 +198,16 @@ Incoming Telemetry:
 
 if __name__ == "__main__":
 
-    print("\n========== NeoAI RAG Test ==========\n")
-
     sample_alert = """
-Component: PCS
+Component: Battery
 
-Fault: Arc Flash
+Fault: Cell Over Temperature
 
 Telemetry:
 
-Light detected inside PCS enclosure.
-Current exceeded threshold.
-Temperature increasing rapidly.
+Temperature = 72°C
+SOC = 91%
+Voltage = 810V
 """
 
     result = generate_rag_advisory(sample_alert)
