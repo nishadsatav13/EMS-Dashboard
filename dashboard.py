@@ -29,11 +29,11 @@ st.markdown("""
   .kpi-row { display: flex; gap: 12px; margin-bottom: 12px; }
   .kpi-box {
     background: #0d1f3c; border: 1px solid #1e3a5f;
-    border-radius: 10px; padding: 14px 18px; flex: 1; text-align: center;
+    border-radius: 10px; padding: 18px 20px; flex: 1; text-align: center;
   }
-  .kpi-label { font-size: 10px; color: #5a7a9a; text-transform: uppercase;
+  .kpi-label { font-size: 11px; color: #5a7a9a; text-transform: uppercase;
                letter-spacing: 1.5px; margin-bottom: 4px; }
-  .kpi-val   { font-size: 24px; font-weight: 700; color: #00d4aa; }
+  .kpi-val   { font-size: 30px; font-weight: 700; color: #00d4aa; }
   .kpi-unit  { font-size: 11px; color: #5a7a9a; }
   .alarm-ok  { background:#001a12; border-left:3px solid #00d4aa;
                padding:8px 14px; border-radius:6px; margin:4px 0;
@@ -239,13 +239,23 @@ def kpi_row(items):
             <span class="kpi-unit">{unit}</span>
           </div>
         </div>""", unsafe_allow_html=True)
+        st.info(
+    f"🟢 LIVE  |  📍 {location}  |  🔄 Refresh: 3 sec"
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: MASTER OVERVIEW
 # ═══════════════════════════════════════════════════════════════════════════════
 if page == "🏠 Master Overview":
-    st.markdown("## 🌍 Master System Overview")
+   st.markdown("""
+# 🌍 NeoAI Energy Management System
+
+### Live Plant Monitoring & Intelligent Asset Analytics
+""")
+    st.success(
+    "🟢 Plant Status: HEALTHY   |   🔋 Battery Online   |   ⚡ PCS Online   |   🔌 Grid Connected"
+)
 
     batt_r = get_row(battery_df, location)
     pcs_r  = get_row(pcs_df,     location)
@@ -275,6 +285,46 @@ if page == "🏠 Master Overview":
     with c2:
         ts_chart(pcs_df, location,
                  "active_power_kw", "PCS Active Power (kW)", "#4a9eff")
+        st.markdown("---")
+st.subheader("⚡ Power Flow Overview")
+
+batt = get_row(battery_df, location)
+pcs = get_row(pcs_df, location)
+xfmr = get_row(xfmr_df, location)
+swgr = get_row(swgr_df, location)
+tline = get_row(tline_df, location)
+
+def component_status(row):
+    if row is None:
+        return "🟡 NO DATA"
+    return "🔴 FAULT" if int(sv(row, "is_fault", 0)) else "🟢 HEALTHY"
+
+c1, c2, c3, c4, c5 = st.columns(5)
+
+with c1:
+    st.markdown("### 🔋")
+    st.markdown("**Battery**")
+    st.markdown(component_status(batt))
+
+with c2:
+    st.markdown("### ⚡")
+    st.markdown("**PCS**")
+    st.markdown(component_status(pcs))
+
+with c3:
+    st.markdown("### 🔌")
+    st.markdown("**Transformer**")
+    st.markdown(component_status(xfmr))
+
+with c4:
+    st.markdown("### 🔧")
+    st.markdown("**Switchgear**")
+    st.markdown(component_status(swgr))
+
+with c5:
+    st.markdown("### 📡")
+    st.markdown("**Grid**")
+    st.markdown(component_status(tline))
 
     st.markdown("---")
     st.markdown("### Component Health Summary")
