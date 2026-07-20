@@ -392,7 +392,6 @@ if page == "🏠 Master Overview":
 # PAGE: BATTERY
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔋 Battery Storage (LFP)":
-
     st.markdown("# 🔋 Battery Energy Storage System (LFP)")
     st.caption("Live Battery Management System • Cell Health • Thermal Monitoring • Lifetime Analytics")
 
@@ -402,7 +401,6 @@ elif page == "🔋 Battery Storage (LFP)":
         st.warning("Battery data not available.")
 
     else:
-
         soc  = sv(row, "state_of_charge_soc_pct", 0)
         soh  = sv(row, "state_of_health_soh_pct", 0)
         pwr  = sv(row, "battery_power_kw", 0)
@@ -458,12 +456,11 @@ elif page == "🔋 Battery Storage (LFP)":
             ("Cycle Count", f"{cyc:.0f}", "", "#a78bfa"),
         ])
 
-         st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
 
         with c1:
-
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=soc,
@@ -502,7 +499,6 @@ elif page == "🔋 Battery Storage (LFP)":
             st.plotly_chart(fig, width="stretch")
 
         with c2:
-
             ts_chart(
                 battery_df,
                 location,
@@ -512,11 +508,9 @@ elif page == "🔋 Battery Storage (LFP)":
             )
 
         with c3:
-
             win = get_window(battery_df, location)
 
             if not win.empty:
-
                 fig = go.Figure()
 
                 fig.add_trace(go.Scatter(
@@ -551,150 +545,145 @@ elif page == "🔋 Battery Storage (LFP)":
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.subheader("📊 Battery Performance Trends")
-c4, c5 = st.columns(2)
+        
+        c4, c5 = st.columns(2)
 
-with c4:
+        with c4:
+            ts_chart(
+                battery_df,
+                location,
+                "state_of_health_soh_pct",
+                "🔋 Battery Health Degradation",
+                "#4a9eff"
+            )
 
-    ts_chart(
-        battery_df,
-        location,
-        "state_of_health_soh_pct",
-        "🔋 Battery Health Degradation",
-        "#4a9eff"
-    )
+        with c5:
+            ts_chart(
+                battery_df,
+                location,
+                "internal_resistance_mohm",
+                "⚙ Internal Resistance (Battery Aging)",
+                "#a78bfa"
+            )
 
-with c5:
+        st.markdown("<br>", unsafe_allow_html=True)
 
-    ts_chart(
-        battery_df,
-        location,
-        "internal_resistance_mohm",
-        "⚙ Internal Resistance (Battery Aging)",
-        "#a78bfa"
-    )
-st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("🩺 Battery Health Assessment")
 
-st.subheader("🩺 Battery Health Assessment")
+        col1, col2 = st.columns(2)
 
-col1, col2 = st.columns(2)
+        # ---------------- LEFT : HEALTH ----------------
 
-# ---------------- LEFT : HEALTH ----------------
+        with col1:
+            thermal = "🟢 NORMAL"
+            thermal_color = "#00d4aa"
 
-with col1:
+            if temp >= 45:
+                thermal = "🔴 HIGH TEMPERATURE"
+                thermal_color = "#ff4d6d"
+            elif temp >= 38:
+                thermal = "🟡 ELEVATED"
+                thermal_color = "#ffb347"
 
-    thermal = "🟢 NORMAL"
-    thermal_color = "#00d4aa"
+            if soh >= 90:
+                aging = "🟢 EXCELLENT"
+                aging_color = "#00d4aa"
+            elif soh >= 80:
+                aging = "🟡 GOOD"
+                aging_color = "#ffb347"
+            else:
+                aging = "🔴 DEGRADED"
+                aging_color = "#ff4d6d"
 
-    if temp >= 45:
-        thermal = "🔴 HIGH TEMPERATURE"
-        thermal_color = "#ff4d6d"
-    elif temp >= 38:
-        thermal = "🟡 ELEVATED"
-        thermal_color = "#ffb347"
+            if ir <= 2:
+                resistance = "🟢 NORMAL"
+                resistance_color = "#00d4aa"
+            elif ir <= 4:
+                resistance = "🟡 INCREASING"
+                resistance_color = "#ffb347"
+            else:
+                resistance = "🔴 HIGH"
+                resistance_color = "#ff4d6d"
 
-    if soh >= 90:
-        aging = "🟢 EXCELLENT"
-        aging_color = "#00d4aa"
-    elif soh >= 80:
-        aging = "🟡 GOOD"
-        aging_color = "#ffb347"
-    else:
-        aging = "🔴 DEGRADED"
-        aging_color = "#ff4d6d"
+            st.markdown(f"""
+            <div class="kpi-box">
 
-    if ir <= 2:
-        resistance = "🟢 NORMAL"
-        resistance_color = "#00d4aa"
-    elif ir <= 4:
-        resistance = "🟡 INCREASING"
-        resistance_color = "#ffb347"
-    else:
-        resistance = "🔴 HIGH"
-        resistance_color = "#ff4d6d"
+            ### Battery Diagnostics
 
-    st.markdown(f"""
-<div class="kpi-box">
+            <b>Thermal Status</b><br>
+            <span style="color:{thermal_color};font-size:18px">{thermal}</span>
 
-### Battery Diagnostics
+            <hr>
 
-<b>Thermal Status</b><br>
-<span style="color:{thermal_color};font-size:18px">{thermal}</span>
+            <b>Battery Aging</b><br>
+            <span style="color:{aging_color};font-size:18px">{aging}</span>
 
-<hr>
+            <hr>
 
-<b>Battery Aging</b><br>
-<span style="color:{aging_color};font-size:18px">{aging}</span>
+            <b>Internal Resistance</b><br>
+            <span style="color:{resistance_color};font-size:18px">{resistance}</span>
 
-<hr>
+            </div>
+            """, unsafe_allow_html=True)
 
-<b>Internal Resistance</b><br>
-<span style="color:{resistance_color};font-size:18px">{resistance}</span>
+        # ---------------- RIGHT : EVENTS ----------------
 
-</div>
-""", unsafe_allow_html=True)
+        with col2:
+            st.markdown("""
+            <div class="kpi-box">
 
-# ---------------- RIGHT : EVENTS ----------------
+            ### 📢 Live Battery Events
+            """, unsafe_allow_html=True)
 
-with col2:
+            if soc > 90:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Battery SOC above 90%</div>',
+                    unsafe_allow_html=True
+                )
+            elif soc < 20:
+                st.markdown(
+                    '<div class="alarm-crit">🔴 Battery SOC critically low</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Battery SOC within operating range</div>',
+                    unsafe_allow_html=True
+                )
 
-    st.markdown("""
-<div class="kpi-box">
+            if temp > 40:
+                st.markdown(
+                    '<div class="alarm-warn">🟡 Cell temperature elevated</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Cell temperature normal</div>',
+                    unsafe_allow_html=True
+                )
 
-### 📢 Live Battery Events
-""", unsafe_allow_html=True)
+            if soh > 90:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Battery health excellent</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-warn">🟡 Battery aging observed</div>',
+                    unsafe_allow_html=True
+                )
 
-    if soc > 90:
-        st.markdown(
-            '<div class="alarm-ok">🟢 Battery SOC above 90%</div>',
-            unsafe_allow_html=True
-        )
+            st.markdown(
+                f'<div class="alarm-ok">🔄 Cycle Count : {int(cyc)}</div>',
+                unsafe_allow_html=True
+            )
 
-    elif soc < 20:
-        st.markdown(
-            '<div class="alarm-crit">🔴 Battery SOC critically low</div>',
-            unsafe_allow_html=True
-        )
+            st.markdown(
+                f'<div class="alarm-ok">⏳ Estimated Remaining Life : {rul:.1f} years</div>',
+                unsafe_allow_html=True
+            )
 
-    else:
-        st.markdown(
-            '<div class="alarm-ok">🟢 Battery SOC within operating range</div>',
-            unsafe_allow_html=True
-        )
-
-    if temp > 40:
-        st.markdown(
-            '<div class="alarm-warn">🟡 Cell temperature elevated</div>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            '<div class="alarm-ok">🟢 Cell temperature normal</div>',
-            unsafe_allow_html=True
-        )
-
-    if soh > 90:
-        st.markdown(
-            '<div class="alarm-ok">🟢 Battery health excellent</div>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            '<div class="alarm-warn">🟡 Battery aging observed</div>',
-            unsafe_allow_html=True
-        )
-
-    st.markdown(
-        f'<div class="alarm-ok">🔄 Cycle Count : {int(cyc)}</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f'<div class="alarm-ok">⏳ Estimated Remaining Life : {rul:.1f} years</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
+            st.markdown("</div>", unsafe_allow_html=True)
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: PCS
 # ═══════════════════════════════════════════════════════════════════════════════
