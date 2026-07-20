@@ -207,19 +207,25 @@ def get_window(df, loc, n=96):
 # ── Helper: time-series chart ─────────────────────────────────────────────────
 def ts_chart(df, loc, y_col, title, color="#00d4aa", n=96):
     win = get_window(df, loc, n)
+
     if win.empty or y_col not in win.columns:
         st.info(f"No data for {y_col}")
         return
+
     fig = go.Figure(go.Scatter(
-        x=win["timestamp"], y=win[y_col],
-        mode="lines", line=dict(color=color, width=2),
+        x=win["timestamp"],
+        y=win[y_col],
+        mode="lines",
+        line=dict(color=color, width=2),
         fill="tozeroy",
         fillcolor=f"rgba({int(color[1:3],16)},"
                   f"{int(color[3:5],16)},"
                   f"{int(color[5:7],16)},0.06)"
     ))
+
     fig.update_layout(**PLOT_CFG, title=title, height=220)
-   st.plotly_chart(fig, width="stretch")
+
+    st.plotly_chart(fig, width="stretch")
 
 # ── KPI helper ────────────────────────────────────────────────────────────────
 def kpi_row(items):
