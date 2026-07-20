@@ -248,103 +248,96 @@ def kpi_row(items):
 # PAGE: MASTER OVERVIEW
 # ═══════════════════════════════════════════════════════════════════════════════
 if page == "🏠 Master Overview":
-   st.markdown("""
+
+    st.markdown("""
 # 🌍 NeoAI Energy Management System
 
 ### Live Plant Monitoring & Intelligent Asset Analytics
 """)
-st.success(
-    "🟢 Plant Status: HEALTHY   |   🔋 Battery Online   |   ⚡ PCS Online   |   🔌 Grid Connected"
-)
+
+    st.success(
+        "🟢 Plant Status: HEALTHY   |   🔋 Battery Online   |   ⚡ PCS Online   |   🔌 Grid Connected"
+    )
 
     batt_r = get_row(battery_df, location)
-    pcs_r  = get_row(pcs_df,     location)
-    swgr_r = get_row(swgr_df,    location)
+    pcs_r = get_row(pcs_df, location)
+    swgr_r = get_row(swgr_df, location)
 
-    soc  = f"{sv(batt_r,'state_of_charge_soc_pct',0):.1f}"    if batt_r is not None else "—"
-    soh  = f"{sv(batt_r,'state_of_health_soh_pct',0):.1f}"    if batt_r is not None else "—"
-    pwr  = f"{sv(pcs_r,'active_power_kw',0):.1f}"             if pcs_r  is not None else "—"
-    freq = f"{sv(pcs_r,'grid_frequency_hz',50):.3f}"           if pcs_r  is not None else "—"
-    pf   = f"{sv(pcs_r,'power_factor_overall',1):.4f}"         if pcs_r  is not None else "—"
-    brk  = str(sv(swgr_r,'main_breaker_position','—'))          if swgr_r is not None else "—"
+    soc = f"{sv(batt_r,'state_of_charge_soc_pct',0):.1f}" if batt_r is not None else "—"
+    soh = f"{sv(batt_r,'state_of_health_soh_pct',0):.1f}" if batt_r is not None else "—"
+    pwr = f"{sv(pcs_r,'active_power_kw',0):.1f}" if pcs_r is not None else "—"
+    freq = f"{sv(pcs_r,'grid_frequency_hz',50):.3f}" if pcs_r is not None else "—"
+    pf = f"{sv(pcs_r,'power_factor_overall',1):.4f}" if pcs_r is not None else "—"
+    brk = str(sv(swgr_r,'main_breaker_position','—')) if swgr_r is not None else "—"
 
     kpi_row([
-        ("State of Charge",   soc,  "%",  "#00d4aa"),
-        ("State of Health",   soh,  "%",  "#4a9eff"),
-        ("PCS Active Power",  pwr,  "kW", "#ffb347"),
-        ("Grid Frequency",    freq, "Hz", "#a78bfa"),
-        ("Power Factor",      pf,   "",   "#00d4aa"),
-        ("Breaker Position",  brk,  "",   "#ff6b9d"),
+        ("State of Charge", soc, "%", "#00d4aa"),
+        ("State of Health", soh, "%", "#4a9eff"),
+        ("PCS Active Power", pwr, "kW", "#ffb347"),
+        ("Grid Frequency", freq, "Hz", "#a78bfa"),
+        ("Power Factor", pf, "", "#00d4aa"),
+        ("Breaker Position", brk, "", "#ff6b9d"),
     ])
 
     st.markdown("<br>", unsafe_allow_html=True)
+
     c1, c2 = st.columns(2)
+
     with c1:
-        ts_chart(battery_df, location,
-                 "state_of_charge_soc_pct", "Battery SOC (%)", "#00d4aa")
+        ts_chart(
+            battery_df,
+            location,
+            "state_of_charge_soc_pct",
+            "Battery SOC (%)",
+            "#00d4aa"
+        )
+
     with c2:
-        ts_chart(pcs_df, location,
-                 "active_power_kw", "PCS Active Power (kW)", "#4a9eff")
-        st.markdown("---")
-st.subheader("⚡ Power Flow Overview")
-
-batt = get_row(battery_df, location)
-pcs = get_row(pcs_df, location)
-xfmr = get_row(xfmr_df, location)
-swgr = get_row(swgr_df, location)
-tline = get_row(tline_df, location)
-
-def component_status(row):
-    if row is None:
-        return "🟡 NO DATA"
-    return "🔴 FAULT" if int(sv(row, "is_fault", 0)) else "🟢 HEALTHY"
-
-c1, c2, c3, c4, c5 = st.columns(5)
-
-with c1:
-    st.markdown("### 🔋")
-    st.markdown("**Battery**")
-    st.markdown(component_status(batt))
-
-with c2:
-    st.markdown("### ⚡")
-    st.markdown("**PCS**")
-    st.markdown(component_status(pcs))
-
-with c3:
-    st.markdown("### 🔌")
-    st.markdown("**Transformer**")
-    st.markdown(component_status(xfmr))
-
-with c4:
-    st.markdown("### 🔧")
-    st.markdown("**Switchgear**")
-    st.markdown(component_status(swgr))
-
-with c5:
-    st.markdown("### 📡")
-    st.markdown("**Grid**")
-    st.markdown(component_status(tline))
+        ts_chart(
+            pcs_df,
+            location,
+            "active_power_kw",
+            "PCS Active Power (kW)",
+            "#4a9eff"
+        )
 
     st.markdown("---")
     st.markdown("### Component Health Summary")
+
     c1, c2, c3, c4 = st.columns(4)
+
     for col, name, df_ref in [
-        (c1, "🔋 Battery",      battery_df),
-        (c2, "⚡ PCS",          pcs_df),
-        (c3, "🔧 Switchgear",   swgr_df),
-        (c4, "📡 Trans. Line",  tline_df),
+        (c1, "🔋 Battery", battery_df),
+        (c2, "⚡ PCS", pcs_df),
+        (c3, "🔧 Switchgear", swgr_df),
+        (c4, "📡 Trans. Line", tline_df),
     ]:
         r = get_row(df_ref, location)
         is_f = int(sv(r, "is_fault", 0)) if r is not None else -1
-        status = "NO DATA" if is_f == -1 else ("⚠ FAULT" if is_f else "✅ NORMAL")
-        color  = "#ffb347" if is_f == -1 else ("#ff4d6d" if is_f else "#00d4aa")
-        col.markdown(f"""
-        <div class="kpi-box" style="border-top:3px solid {color}">
-          <div class="kpi-label">{name}</div>
-          <div class="kpi-val" style="color:{color};font-size:16px">{status}</div>
-        </div>""", unsafe_allow_html=True)
 
+        status = (
+            "NO DATA"
+            if is_f == -1
+            else ("⚠ FAULT" if is_f else "✅ NORMAL")
+        )
+
+        color = (
+            "#ffb347"
+            if is_f == -1
+            else ("#ff4d6d" if is_f else "#00d4aa")
+        )
+
+        col.markdown(
+            f"""
+            <div class="kpi-box" style="border-top:3px solid {color}">
+                <div class="kpi-label">{name}</div>
+                <div class="kpi-val" style="color:{color};font-size:16px">
+                    {status}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: BATTERY
 # ═══════════════════════════════════════════════════════════════════════════════
