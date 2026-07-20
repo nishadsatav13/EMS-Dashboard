@@ -608,32 +608,52 @@ elif page == "🚨 Alarms & Faults":
     st.markdown("## 🚨 Alarms & Faults")
 
     comps = [
-        ("Battery",        battery_df),
-        ("PCS",            pcs_df),
-        ("Switchgear",     swgr_df),
-        ("Trans. Line",    tline_df),
+        ("Battery", battery_df),
+        ("PCS", pcs_df),
+        ("Switchgear", swgr_df),
+        ("Trans. Line", tline_df),
     ]
 
     any_fault = False
+
     for name, df_ref in comps:
         r = get_row(df_ref, location)
+
         if r is None:
-            st.markdown(f'<div class="alarm-warn">⚠ [{name}] Data not loaded</div>',
-                        unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="alarm-warn">⚠ [{name}] Data not loaded</div>',
+                unsafe_allow_html=True
+            )
             continue
-        ft   = str(sv(r, "fault_type",     "normal"))
-        sev  = str(sv(r, "fault_severity", "none"))
-        is_f = int(sv(r, "is_fault",        0))
-        is_c = int(sv(r, "is_critical",     0))
+
+        # Battery dataset uses fault_code instead of fault_type
+        ft = str(sv(r, "fault_type", sv(r, "fault_code", "normal")))
+
+        # Battery doesn't have fault_severity
+        sev = str(
+            sv(
+                r,
+                "fault_severity",
+                "critical" if sv(r, "is_critical", 0) else "low"
+            )
+        )
+
+        is_f = int(sv(r, "is_fault", 0))
+        is_c = int(sv(r, "is_critical", 0))
 
         if is_c:
-            cls = "alarm-crit"; icon = "🔴"; any_fault = True
+            cls = "alarm-crit"
+            icon = "🔴"
+            any_fault = True
         elif is_f:
-            cls = "alarm-warn"; icon = "🟡"; any_fault = True
+            cls = "alarm-warn"
+            icon = "🟡"
+            any_fault = True
         else:
-            cls = "alarm-ok";   icon = "🟢"
+            cls = "alarm-ok"
+            icon = "🟢"
 
-        msg = f"{icon} [{name}]  {ft.replace('_',' ').upper()}  —  Severity: {sev.upper()}"
+        msg = f"{icon} [{name}] {ft.replace('_',' ').upper()} — Severity: {sev.upper()}"
         st.markdown(f'<div class="{cls}">{msg}</div>', unsafe_allow_html=True)
 
     if not any_fault:
@@ -643,38 +663,73 @@ elif page == "🚨 Alarms & Faults":
     st.markdown("### Fault Event History")
 
     fault_frames = []
+
     for name, df_ref in comps:
-        if df_ref is not None and not df_ref.empty and "is_fault" in df_ref.columns:
-            loc_df = df_ref[df_ref["location"] == location] \
-                     if "location" in df_ref.columns else df_ref
-            faults = loc_df[loc_df["is_fault"] == 1][
-                ["timestamp", "fault_type", "fault_severity", "is_critical"]
-            ].copy()
-            faults["component"] = name
-            fault_frames.append(faults)
+
+        if df_ref is None or df_ref.empty:
+            continue
+
+        if "is_fault" not in df_ref.columns:
+            continue
+
+        loc_df = (
+            df_ref[df_ref["location"] == location]
+            if "location" in df_ref.columns
+            else df_ref
+        )
+
+        faults = loc_df[loc_df["is_fault"] == 1].copy()
+
+        if faults.empty:
+            continue
+
+        # Battery fix
+        if "fault_type" not in faults.columns and "fault_code" in faults.columns:
+            faults["fault_type"] = faults["fault_code"]
+
+        if "fault_severity" not in faults.columns:
+            faults["fault_severity"] = faults["is_critical"].apply(
+                lambda x: "critical" if x == 1 else "low"
+            )
+
+        faults = faults[
+            ["timestamp", "fault_type", "fault_severity", "is_critical"]
+        ].copy()
+
+        faults["component"] = name
+        fault_frames.append(faults)
 
     if fault_frames:
-        all_faults = pd.concat(fault_frames).sort_values(
-            "timestamp", ascending=False).head(50)
+        all_faults = (
+            pd.concat(fault_frames)
+            .sort_values("timestamp", ascending=False)
+            .head(50)
+        )
+
         if len(all_faults) > 0:
             import plotly.express as px
+
             fig = px.scatter(
-                all_faults, x="timestamp", y="component",
+                all_faults,
+                x="timestamp",
+                y="component",
                 color="fault_severity",
                 color_discrete_map={
-                    "critical": "#ff4d6d", "high": "#ff8c00",
-                    "medium":   "#ffb347", "low": "#00d4aa",
-                    "none":     "#3d5a7a",
+                    "critical": "#ff4d6d",
+                    "high": "#ff8c00",
+                    "medium": "#ffb347",
+                    "low": "#00d4aa",
+                    "none": "#3d5a7a",
                 },
                 title="Fault Timeline",
                 height=280,
             )
+
             fig.update_layout(**PLOT_CFG)
             fig.update_traces(marker=dict(size=10))
-            st.plotly_chart(fig, use_container_width=True)
 
-            st.dataframe(all_faults.reset_index(drop=True),
-                         use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(all_faults.reset_index(drop=True), use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: FORECAST & AI ADVISORY
