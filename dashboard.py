@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-count = st_autorefresh(interval=3000, key="neoai_refresh")
+count = st_autorefresh(interval=5000, key="neoai_refresh")
 st.session_state.tick = count
 
 # ── Dark theme CSS ────────────────────────────────────────────────────────────
@@ -172,14 +172,7 @@ with st.sidebar:
         "🔮 Forecast & AI Advisory",
     ])
     
-    # 👇 THE GHOSTING FIX: Flush UI instantly when tab changes 👇
-    if "last_page" not in st.session_state:
-        st.session_state.last_page = page
-        
-    if st.session_state.last_page != page:
-        st.session_state.last_page = page
-        st.rerun()
-    # 👆 -------------------------------------------------------- 👆
+   
 
     st.markdown("---")
     st.markdown(f"**Tick:** `{st.session_state.tick}`")
@@ -226,7 +219,7 @@ def ts_chart(df, loc, y_col, title, color="#00d4aa", n=96):
                   f"{int(color[5:7],16)},0.06)"
     ))
     fig.update_layout(**PLOT_CFG, title=title, height=220)
-    st.plotly_chart(fig, use_container_width=True)
+   st.plotly_chart(fig, width="stretch")
 
 # ── KPI helper ────────────────────────────────────────────────────────────────
 def kpi_row(items):
