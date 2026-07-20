@@ -16,6 +16,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+count = st_autorefresh(interval=3000, key="neoai_refresh")
+st.session_state.tick = count
 
 # ── Dark theme CSS ────────────────────────────────────────────────────────────
 st.markdown("""
@@ -541,6 +543,7 @@ elif page == "🔧 Main Switchgear Panel":
                      "grid_frequency_hz", "Grid Frequency (Hz)", "#4a9eff")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: TRANSMISSION LINE
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "📡 Transmission & Grid Line":
@@ -549,58 +552,126 @@ elif page == "📡 Transmission & Grid Line":
 
     if row is None:
         st.warning("Transmission line data not available.")
+
     else:
-        loading = sv(row, "line_loading_pct",                  0)
-        loss    = sv(row, "line_transmission_loss_kw",          0)
-        cond_t  = sv(row, "line_conductor_temperature_c",       0)
-        freq    = sv(row, "grid_frequency_receiving_end_hz",   50)
-        vdrop   = sv(row, "voltage_drop_across_line_v",         0)
-        pf      = sv(row, "power_factor_at_pcc",                1)
+        loading = sv(row, "line_loading_pct", 0)
+        loss    = sv(row, "line_transmission_loss_kw", 0)
+        cond_t  = sv(row, "line_conductor_temperature_c", 0)
+        freq    = sv(row, "grid_frequency_receiving_end_hz", 50)
+        vdrop   = sv(row, "voltage_drop_across_line_v", 0)
+        pf      = sv(row, "power_factor_at_pcc", 1)
 
         kpi_row([
-            ("Line Loading",      f"{loading:.1f}", "%",  "#ff6b9d"),
-            ("Trans. Loss",       f"{loss:.2f}",    "kW", "#ff4d6d"),
-            ("Conductor Temp",    f"{cond_t:.1f}",  "°C", "#ffb347"),
-            ("Receiving Freq",    f"{freq:.3f}",    "Hz", "#00d4aa"),
-            ("Voltage Drop",      f"{vdrop:.1f}",   "V",  "#a78bfa"),
-            ("Power Factor PCC",  f"{pf:.4f}",      "",   "#4a9eff"),
+            ("Line Loading",     f"{loading:.1f}", "%", "#ff6b9d"),
+            ("Trans. Loss",      f"{loss:.2f}", "kW", "#ff4d6d"),
+            ("Conductor Temp",   f"{cond_t:.1f}", "°C", "#ffb347"),
+            ("Receiving Freq",   f"{freq:.3f}", "Hz", "#00d4aa"),
+            ("Voltage Drop",     f"{vdrop:.1f}", "V", "#a78bfa"),
+            ("Power Factor PCC", f"{pf:.4f}", "", "#4a9eff"),
         ])
 
         st.markdown("<br>", unsafe_allow_html=True)
+
         c1, c2, c3 = st.columns(3)
+
         with c1:
-            ts_chart(tline_df, location,
-                     "line_loading_pct", "Line Loading (%)", "#ff6b9d")
+            ts_chart(
+                tline_df,
+                location,
+                "line_loading_pct",
+                "Line Loading (%)",
+                "#ff6b9d",
+            )
+
         with c2:
-            ts_chart(tline_df, location,
-                     "line_transmission_loss_kw",
-                     "Transmission Loss (kW)", "#ff4d6d")
+            ts_chart(
+                tline_df,
+                location,
+                "line_transmission_loss_kw",
+                "Transmission Loss (kW)",
+                "#ff4d6d",
+            )
+
         with c3:
-            ts_chart(tline_df, location,
-                     "grid_frequency_receiving_end_hz",
-                     "Receiving End Frequency (Hz)", "#00d4aa")
+            ts_chart(
+                tline_df,
+                location,
+                "grid_frequency_receiving_end_hz",
+                "Receiving End Frequency (Hz)",
+                "#00d4aa",
+            )
 
         c4, c5 = st.columns(2)
+
         with c4:
             win = get_window(tline_df, location)
-            if not win.empty:
-                fig = go.Figure()
-                for col_n, color, lbl in [
-                    ("sending_end_voltage_phase_a_v", "#ff4d6d", "Phase A"),
-                    ("sending_end_voltage_phase_b_v", "#ffb347", "Phase B"),
-                    ("sending_end_voltage_phase_c_v", "#4a9eff", "Phase C"),
-                ]:
-                    fig.add_trace(go.Scatter(x=win["timestamp"], y=win[col_n],
-                        line=dict(color=color, width=1.5), name=lbl))
-                fig.update_layout(**PLOT_CFG,
-                                   title="Sending End Voltage (V)", height=220)
-                st.plotly_chart(fig, use_container_width=True)
+
+            if win.empty:
+                st.info("No transmission voltage history available.")
+
+            elif "timestamp" not in win.columns:
+                st.warning("Timestamp column missing.")
+
+            else:
+                required_cols = [
+                    "sending_end_voltage_phase_a_v",
+                    "sending_end_voltage_phase_b_v",
+                    "sending_end_voltage_phase_c_v",
+                ]
+
+                missing = [c for c in required_cols if c not in win.columns]
+
+                if missing:
+                    st.warning(
+                        f"Missing voltage columns: {', '.join(missing)}"
+                    )
+
+                else:
+                    fig = go.Figure()
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=win["timestamp"],
+                            y=win["sending_end_voltage_phase_a_v"],
+                            name="Phase A",
+                            line=dict(color="#ff4d6d", width=1.5),
+                        )
+                    )
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=win["timestamp"],
+                            y=win["sending_end_voltage_phase_b_v"],
+                            name="Phase B",
+                            line=dict(color="#ffb347", width=1.5),
+                        )
+                    )
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=win["timestamp"],
+                            y=win["sending_end_voltage_phase_c_v"],
+                            name="Phase C",
+                            line=dict(color="#4a9eff", width=1.5),
+                        )
+                    )
+
+                    fig.update_layout(
+                        **PLOT_CFG,
+                        title="Sending End Voltage (V)",
+                        height=220,
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
 
         with c5:
-            ts_chart(tline_df, location,
-                     "line_conductor_temperature_c",
-                     "Conductor Temperature (°C)", "#ffb347")
-
+            ts_chart(
+                tline_df,
+                location,
+                "line_conductor_temperature_c",
+                "Conductor Temperature (°C)",
+                "#ffb347",
+            )
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: ALARMS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -829,6 +900,3 @@ Telemetry:
 # ═══════════════════════════════════════════════════════════════════════════════
 # ALWAYS-ON LIVE REFRESH — 3 second tick, no toggle needed
 # ═══════════════════════════════════════════════════════════════════════════════
-time.sleep(3)
-st.session_state.tick += 1
-st.rerun()
