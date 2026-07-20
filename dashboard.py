@@ -253,7 +253,7 @@ if page == "🏠 Master Overview":
 
 ### Live Plant Monitoring & Intelligent Asset Analytics
 """)
-    st.success(
+st.success(
     "🟢 Plant Status: HEALTHY   |   🔋 Battery Online   |   ⚡ PCS Online   |   🔌 Grid Connected"
 )
 
