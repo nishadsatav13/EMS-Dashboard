@@ -458,129 +458,99 @@ elif page == "🔋 Battery Storage (LFP)":
             ("Cycle Count", f"{cyc:.0f}", "", "#a78bfa"),
         ])
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        cA, cB, cC, cD = st.columns(4)
-
-        with cA:
-            st.metric(
-                "Remaining Useful Life",
-                f"{rul:.1f} Years"
-            )
-
-        with cB:
-            st.metric(
-                "Internal Resistance",
-                f"{ir:.2f} mΩ"
-            )
-
-        with cC:
-            st.metric(
-                "Max Cell Temp",
-                f"{max_temp:.1f} °C"
-            )
-
-        with cD:
-            st.metric(
-                "Min Cell Temp",
-                f"{min_temp:.1f} °C"
-            )
-
-        st.markdown("<br>", unsafe_allow_html=True)
+              st.markdown("<br>", unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
 
-      with c1:
+        with c1:
 
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=soc,
-        number={
-            "suffix": "%",
-            "font": {"size": 32, "color": "#00d4aa"}
-        },
-        title={
-            "text": "Battery State of Charge",
-            "font": {"size": 14}
-        },
-        gauge={
-            "axis": {"range": [0,100]},
-            "bar": {"color":"#00d4aa"},
-            "bgcolor":"#0d1f3c",
-            "bordercolor":"#1e3a5f",
-            "steps":[
-                {"range":[0,20],"color":"#2b0d0d"},
-                {"range":[20,50],"color":"#3a2500"},
-                {"range":[50,80],"color":"#13341f"},
-                {"range":[80,100],"color":"#005c43"}
-            ],
-            "threshold":{
-                "line":{"color":"red","width":4},
-                "value":20
-            }
-        }
-    ))
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=soc,
+                number={
+                    "suffix": "%",
+                    "font": {"size": 32, "color": "#00d4aa"}
+                },
+                title={
+                    "text": "Battery State of Charge",
+                    "font": {"size": 14}
+                },
+                gauge={
+                    "axis": {"range": [0, 100]},
+                    "bar": {"color": "#00d4aa"},
+                    "bgcolor": "#0d1f3c",
+                    "bordercolor": "#1e3a5f",
+                    "steps": [
+                        {"range": [0, 20], "color": "#2b0d0d"},
+                        {"range": [20, 50], "color": "#3a2500"},
+                        {"range": [50, 80], "color": "#13341f"},
+                        {"range": [80, 100], "color": "#005c43"}
+                    ],
+                    "threshold": {
+                        "line": {"color": "red", "width": 4},
+                        "value": 20
+                    }
+                }
+            ))
 
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        height=250,
-        margin=dict(l=10,r=10,t=40,b=10)
-    )
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                height=250,
+                margin=dict(l=10, r=10, t=40, b=10)
+            )
 
-    st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, width="stretch")
 
+        with c2:
 
-with c2:
+            ts_chart(
+                battery_df,
+                location,
+                "state_of_charge_soc_pct",
+                "📈 State of Charge Trend",
+                "#00d4aa"
+            )
 
-    ts_chart(
-        battery_df,
-        location,
-        "state_of_charge_soc_pct",
-        "📈 State of Charge Trend",
-        "#00d4aa"
-    )
+        with c3:
 
+            win = get_window(battery_df, location)
 
-with c3:
+            if not win.empty:
 
-    win = get_window(battery_df, location)
+                fig = go.Figure()
 
-    if not win.empty:
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["max_cell_temperature_c"],
+                    name="Maximum",
+                    line=dict(color="#ff4d6d", width=2)
+                ))
 
-        fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["average_cell_temperature_c"],
+                    name="Average",
+                    line=dict(color="#ffb347", width=3)
+                ))
 
-        fig.add_trace(go.Scatter(
-            x=win["timestamp"],
-            y=win["max_cell_temperature_c"],
-            name="Maximum",
-            line=dict(color="#ff4d6d", width=2)
-        ))
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["min_cell_temperature_c"],
+                    name="Minimum",
+                    line=dict(color="#00d4aa", width=2)
+                ))
 
-        fig.add_trace(go.Scatter(
-            x=win["timestamp"],
-            y=win["average_cell_temperature_c"],
-            name="Average",
-            line=dict(color="#ffb347", width=3)
-        ))
+                fig.update_layout(
+                    **PLOT_CFG,
+                    title="🌡 Cell Temperature Profile",
+                    height=250
+                )
 
-        fig.add_trace(go.Scatter(
-            x=win["timestamp"],
-            y=win["min_cell_temperature_c"],
-            name="Minimum",
-            line=dict(color="#00d4aa", width=2)
-        ))
+                st.plotly_chart(fig, width="stretch")
 
-        fig.update_layout(
-            **PLOT_CFG,
-            title="🌡 Cell Temperature Profile",
-            height=250
-        )
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        st.plotly_chart(fig, width="stretch")
-       st.markdown("<br>", unsafe_allow_html=True)
-
-st.subheader("📊 Battery Performance Trends")
-
+        st.subheader("📊 Battery Performance Trends")
 c4, c5 = st.columns(2)
 
 with c4:
