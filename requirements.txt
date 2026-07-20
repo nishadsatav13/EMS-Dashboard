@@ -1,26 +1,24 @@
+# NeoAI EMS Dashboard — Streamlit Cloud requirements
+# torch/torchvision removed — too large for Streamlit Cloud (2GB+)
+# Using CPU-only sentence-transformers instead
+
 streamlit
 streamlit-autorefresh
 plotly
 pandas
 numpy
+pyarrow
 openpyxl
-
-psycopg2-binary
-sqlalchemy
-
 python-dotenv
-
 pydantic
 
+# LLM + Agent
 langchain
 langchain-core
 langchain-groq
 langchain-huggingface
 langchain-chroma
-
 chromadb
 
+# Embeddings — CPU only, no torch
 sentence-transformers
-torch
-transformers
-torchvision
