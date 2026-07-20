@@ -8,6 +8,7 @@ import numpy as np
 import time
 from datetime import datetime, timezone, timedelta
 from agent.smart_agent import generate_rag_advisory
+from streamlit_autorefresh import st_autorefresh
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
