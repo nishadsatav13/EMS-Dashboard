@@ -819,6 +819,138 @@ color:white;
         with c5:
             ts_chart(pcs_df, location,
                      "grid_frequency_hz", "Grid Frequency (Hz)", "#a78bfa")
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+        st.subheader("🩺 PCS Diagnostics")
+
+        d1, d2 = st.columns(2)
+
+        # ---------------- LEFT : DIAGNOSTICS ----------------
+
+        with d1:
+
+            heatsink = sv(row, "heatsink_temperature_c", 0)
+            pq_score = sv(row, "power_quality_compliance_score", 0)
+
+            comm_ok = (
+                str(sv(row, "modbus_communication_status", "offline")).lower()
+                == "online"
+            )
+
+            ground_fault = bool(sv(row, "ground_fault_status", False))
+            arc_flash = bool(sv(row, "arc_flash_detection_status", False))
+
+            # IGBT
+            if igbt < 60:
+                igbt_status = "🟢 NORMAL"
+                igbt_color = "#00d4aa"
+            elif igbt < 75:
+                igbt_status = "🟡 ELEVATED"
+                igbt_color = "#ffb347"
+            else:
+                igbt_status = "🔴 HIGH"
+                igbt_color = "#ff4d6d"
+
+            # Power Quality
+            if pq_score >= 95:
+                pq_status = "🟢 EXCELLENT"
+                pq_color = "#00d4aa"
+            elif pq_score >= 85:
+                pq_status = "🟡 GOOD"
+                pq_color = "#ffb347"
+            else:
+                pq_status = "🔴 POOR"
+                pq_color = "#ff4d6d"
+
+            # Communication
+            if comm_ok:
+                comm_status = "🟢 ONLINE"
+                comm_color = "#00d4aa"
+            else:
+                comm_status = "🔴 OFFLINE"
+                comm_color = "#ff4d6d"
+
+            st.markdown(f"""
+<div class="kpi-box">
+
+### PCS Diagnostics
+
+<b>IGBT Thermal Status</b><br>
+<span style="color:{igbt_color};font-size:18px">{igbt_status}</span>
+
+<hr>
+
+<b>Power Quality</b><br>
+<span style="color:{pq_color};font-size:18px">{pq_status}</span>
+
+<hr>
+
+<b>Communication</b><br>
+<span style="color:{comm_color};font-size:18px">{comm_status}</span>
+
+</div>
+""", unsafe_allow_html=True)
+
+        # ---------------- RIGHT : EVENTS ----------------
+
+        with d2:
+
+            st.markdown("""
+<div class="kpi-box">
+
+### 📢 Live PCS Events
+""", unsafe_allow_html=True)
+
+            if eff >= 98:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Conversion efficiency above 98%</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-warn">🟡 Conversion efficiency below optimal</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if abs(thd) <= 5:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Voltage THD within IEEE limits</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-warn">🟡 Voltage THD elevated</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if not ground_fault:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 No ground fault detected</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-crit">🔴 Ground fault detected</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if not arc_flash:
+                st.markdown(
+                    '<div class="alarm-ok">🟢 Arc flash monitoring normal</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="alarm-crit">🔴 Arc flash event detected</div>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f'<div class="alarm-ok">⚙ Heatsink Temperature : {heatsink:.1f} °C</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: TRANSFORMER
