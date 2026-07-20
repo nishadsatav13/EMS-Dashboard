@@ -819,7 +819,7 @@ color:white;
         with c5:
             ts_chart(pcs_df, location,
                      "grid_frequency_hz", "Grid Frequency (Hz)", "#a78bfa")
-                    st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
         st.subheader("🩺 PCS Diagnostics")
 
@@ -951,7 +951,6 @@ color:white;
             )
 
             st.markdown("</div>", unsafe_allow_html=True)
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: TRANSFORMER
 # ═══════════════════════════════════════════════════════════════════════════════
