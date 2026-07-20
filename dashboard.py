@@ -249,7 +249,6 @@ if page == "🏠 Master Overview":
 
     st.markdown("""
 # 🌍 NeoAI Energy Management System
-
 ### Live Plant Monitoring & Intelligent Asset Analytics
 """)
 
@@ -260,6 +259,7 @@ if page == "🏠 Master Overview":
     batt_r = get_row(battery_df, location)
     pcs_r = get_row(pcs_df, location)
     swgr_r = get_row(swgr_df, location)
+    xfmr_r = get_row(xfmr_df, location)
 
     soc = f"{sv(batt_r,'state_of_charge_soc_pct',0):.1f}" if batt_r is not None else "—"
     soh = f"{sv(batt_r,'state_of_health_soh_pct',0):.1f}" if batt_r is not None else "—"
@@ -276,9 +276,26 @@ if page == "🏠 Master Overview":
         ("Power Factor", pf, "", "#00d4aa"),
         ("Breaker Position", brk, "", "#ff6b9d"),
     ])
-    st.info(f"🟢 LIVE  |  📍 {location}  |  🔄 Refresh: 3 sec")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # ---------- Live Banner ----------
+    st.markdown(f"""
+    <div style="
+        background:#0d1f3c;
+        border-left:5px solid #00d4aa;
+        padding:12px 18px;
+        border-radius:8px;
+        color:white;
+        margin-top:8px;
+        margin-bottom:20px;
+        font-size:15px;
+    ">
+        🟢 <b>LIVE</b>
+        &nbsp;&nbsp;&nbsp;
+        📍 <b>{location}</b>
+        &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+        🔄 Refresh: <b>5 sec</b>
+    </div>
+    """, unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
 
@@ -287,7 +304,7 @@ if page == "🏠 Master Overview":
             battery_df,
             location,
             "state_of_charge_soc_pct",
-            "Battery SOC (%)",
+            "🔋 Battery State of Charge Trend",
             "#00d4aa"
         )
 
@@ -296,159 +313,523 @@ if page == "🏠 Master Overview":
             pcs_df,
             location,
             "active_power_kw",
-            "PCS Active Power (kW)",
+            "⚡ PCS Active Power Trend",
             "#4a9eff"
         )
 
-    st.markdown("---")
-    st.markdown("### Component Health Summary")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    c1, c2, c3, c4 = st.columns(4)
+    st.subheader("🩺 Equipment Health Overview")
 
-    for col, name, df_ref in [
-        (c1, "🔋 Battery", battery_df),
-        (c2, "⚡ PCS", pcs_df),
-        (c3, "🔧 Switchgear", swgr_df),
-        (c4, "📡 Trans. Line", tline_df),
-    ]:
+    cards = st.columns(5)
+
+    equipment = [
+        ("🔋 Battery", battery_df),
+        ("⚡ PCS", pcs_df),
+        ("🔌 Transformer", xfmr_df),
+        ("🔧 Switchgear", swgr_df),
+        ("📡 Transmission", tline_df),
+    ]
+
+    for col, (name, df_ref) in zip(cards, equipment):
+
         r = get_row(df_ref, location)
-        is_f = int(sv(r, "is_fault", 0)) if r is not None else -1
 
-        status = (
-            "NO DATA"
-            if is_f == -1
-            else ("⚠ FAULT" if is_f else "✅ NORMAL")
-        )
+        if r is None:
+            status = "NO DATA"
+            color = "#ffb347"
+        else:
+            fault = int(sv(r, "is_fault", 0))
 
-        color = (
-            "#ffb347"
-            if is_f == -1
-            else ("#ff4d6d" if is_f else "#00d4aa")
-        )
+            if fault:
+                status = "⚠ FAULT"
+                color = "#ff4d6d"
+            else:
+                status = "✅ NORMAL"
+                color = "#00d4aa"
 
-        col.markdown(
-            f"""
-            <div class="kpi-box" style="border-top:3px solid {color}">
-                <div class="kpi-label">{name}</div>
-                <div class="kpi-val" style="color:{color};font-size:16px">
-                    {status}
-                </div>
+        col.markdown(f"""
+        <div class="kpi-box" style="border-top:3px solid {color}">
+            <div class="kpi-label">{name}</div>
+            <div style="
+                color:{color};
+                font-size:18px;
+                font-weight:700;
+                margin-top:8px;
+            ">
+                {status}
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.subheader("📢 Plant Events")
+
+    events = []
+
+    if batt_r is not None:
+        if float(sv(batt_r, "state_of_charge_soc_pct", 0)) >= 80:
+            events.append("🟢 Battery SOC is healthy and above 80%.")
+        else:
+            events.append("🟡 Battery SOC is below 80%.")
+
+    if pcs_r is not None:
+        events.append(f"⚡ PCS delivering {pwr} kW.")
+
+    if swgr_r is not None:
+        events.append(f"🔧 Main breaker status: {brk}.")
+
+    if len(events) == 0:
+        st.info("No live events available.")
+    else:
+        for e in events:
+            st.markdown(
+                f'<div class="alarm-ok">{e}</div>',
+                unsafe_allow_html=True
+            )
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: BATTERY
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔋 Battery Storage (LFP)":
-    st.markdown("## 🔋 Battery Storage — LFP")
+
+    st.markdown("# 🔋 Battery Energy Storage System (LFP)")
+    st.caption("Live Battery Management System • Cell Health • Thermal Monitoring • Lifetime Analytics")
+
     row = get_row(battery_df, location)
 
     if row is None:
         st.warning("Battery data not available.")
+
     else:
-        soc  = sv(row, "state_of_charge_soc_pct",    0)
-        soh  = sv(row, "state_of_health_soh_pct",    0)
-        pwr  = sv(row, "battery_power_kw",            0)
-        temp = sv(row, "average_cell_temperature_c",  0)
-        ir   = sv(row, "internal_resistance_mohm",    0)
-        rul  = sv(row, "remaining_useful_life_years",  0)
-        cyc  = sv(row, "cycle_count",                 0)
-        volt = sv(row, "pack_voltage_v",              0)
+
+        soc  = sv(row, "state_of_charge_soc_pct", 0)
+        soh  = sv(row, "state_of_health_soh_pct", 0)
+        pwr  = sv(row, "battery_power_kw", 0)
+        temp = sv(row, "average_cell_temperature_c", 0)
+        ir   = sv(row, "internal_resistance_mohm", 0)
+        rul  = sv(row, "remaining_useful_life_years", 0)
+        cyc  = sv(row, "cycle_count", 0)
+        volt = sv(row, "pack_voltage_v", 0)
+
+        max_temp = sv(row, "max_cell_temperature_c", temp)
+        min_temp = sv(row, "min_cell_temperature_c", temp)
+
+        # ---------------- Battery Status ----------------
+
+        if pwr > 5:
+            battery_status = "🟢 Charging"
+            status_color = "#00d4aa"
+
+        elif pwr < -5:
+            battery_status = "🔵 Discharging"
+            status_color = "#4a9eff"
+
+        else:
+            battery_status = "🟡 Idle"
+            status_color = "#ffb347"
+
+        st.markdown(
+            f"""
+            <div style="
+            background:#0d1f3c;
+            border-left:6px solid {status_color};
+            padding:14px;
+            border-radius:10px;
+            margin-bottom:18px;
+            color:white;
+            ">
+            <b>{battery_status}</b>
+            &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+            🔋 Battery Pack Online
+            &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+            📍 {location}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         kpi_row([
-            ("SOC",           f"{soc:.1f}",  "%",   "#00d4aa"),
-            ("SOH",           f"{soh:.2f}",  "%",   "#4a9eff"),
-            ("Battery Power", f"{pwr:.2f}",  "kW",  "#ffb347"),
-            ("Avg Cell Temp", f"{temp:.1f}", "°C",  "#ff6b9d"),
-            ("RUL",           f"{rul:.1f}",  "yrs", "#a78bfa"),
-            ("Cycle Count",   f"{cyc:.0f}",  "",    "#00d4aa"),
+            ("SOC", f"{soc:.1f}", "%", "#00d4aa"),
+            ("SOH", f"{soh:.1f}", "%", "#4a9eff"),
+            ("Pack Voltage", f"{volt:.1f}", "V", "#ffb347"),
+            ("Battery Power", f"{pwr:.1f}", "kW", "#00d4aa"),
+            ("Avg Temp", f"{temp:.1f}", "°C", "#ff6b9d"),
+            ("Cycle Count", f"{cyc:.0f}", "", "#a78bfa"),
         ])
 
         st.markdown("<br>", unsafe_allow_html=True)
+
+        cA, cB, cC, cD = st.columns(4)
+
+        with cA:
+            st.metric(
+                "Remaining Useful Life",
+                f"{rul:.1f} Years"
+            )
+
+        with cB:
+            st.metric(
+                "Internal Resistance",
+                f"{ir:.2f} mΩ"
+            )
+
+        with cC:
+            st.metric(
+                "Max Cell Temp",
+                f"{max_temp:.1f} °C"
+            )
+
+        with cD:
+            st.metric(
+                "Min Cell Temp",
+                f"{min_temp:.1f} °C"
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         c1, c2, c3 = st.columns(3)
 
-        with c1:
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number", value=soc,
-                number={"suffix": "%", "font": {"color": "#00d4aa", "size": 28}},
-                title={"text": "SOC", "font": {"color": "#5a7a9a", "size": 12}},
-                gauge={
-                    "axis":  {"range": [0, 100], "tickcolor": "#1a2744"},
-                    "bar":   {"color": "#00d4aa"},
-                    "bgcolor": "#0d1f3c",
-                    "bordercolor": "#1e3a5f",
-                    "steps": [
-                        {"range": [0, 20],  "color": "#2d0a0a"},
-                        {"range": [20, 50], "color": "#1a1000"},
-                        {"range": [50, 100],"color": "#001a12"},
-                    ],
-                    "threshold": {"line": {"color": "#ff4d6d", "width": 3},
-                                  "thickness": 0.75, "value": 20},
-                }
-            ))
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                              height=230, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig, use_container_width=True)
+      with c1:
 
-        with c2:
-            ts_chart(battery_df, location,
-                     "state_of_charge_soc_pct", "SOC Trend (%)", "#00d4aa")
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=soc,
+        number={
+            "suffix": "%",
+            "font": {"size": 32, "color": "#00d4aa"}
+        },
+        title={
+            "text": "Battery State of Charge",
+            "font": {"size": 14}
+        },
+        gauge={
+            "axis": {"range": [0,100]},
+            "bar": {"color":"#00d4aa"},
+            "bgcolor":"#0d1f3c",
+            "bordercolor":"#1e3a5f",
+            "steps":[
+                {"range":[0,20],"color":"#2b0d0d"},
+                {"range":[20,50],"color":"#3a2500"},
+                {"range":[50,80],"color":"#13341f"},
+                {"range":[80,100],"color":"#005c43"}
+            ],
+            "threshold":{
+                "line":{"color":"red","width":4},
+                "value":20
+            }
+        }
+    ))
 
-        with c3:
-            win = get_window(battery_df, location)
-            if not win.empty:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=win["timestamp"],
-                    y=win["max_cell_temperature_c"],
-                    line=dict(color="#ff4d6d", width=1.5), name="Max"))
-                fig.add_trace(go.Scatter(x=win["timestamp"],
-                    y=win["average_cell_temperature_c"],
-                    line=dict(color="#ffb347", width=2), name="Avg"))
-                fig.add_trace(go.Scatter(x=win["timestamp"],
-                    y=win["min_cell_temperature_c"],
-                    line=dict(color="#00d4aa", width=1.5), name="Min"))
-                fig.update_layout(**PLOT_CFG, title="Cell Temp (°C)", height=230)
-                st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=250,
+        margin=dict(l=10,r=10,t=40,b=10)
+    )
 
-        c4, c5 = st.columns(2)
-        with c4:
-            ts_chart(battery_df, location,
-                     "state_of_health_soh_pct", "SOH Trend (%)", "#4a9eff")
-        with c5:
-            ts_chart(battery_df, location,
-                     "internal_resistance_mohm",
-                     "Internal Resistance (mΩ) — Aging Indicator", "#a78bfa")
+    st.plotly_chart(fig, width="stretch")
+
+
+with c2:
+
+    ts_chart(
+        battery_df,
+        location,
+        "state_of_charge_soc_pct",
+        "📈 State of Charge Trend",
+        "#00d4aa"
+    )
+
+
+with c3:
+
+    win = get_window(battery_df, location)
+
+    if not win.empty:
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=win["timestamp"],
+            y=win["max_cell_temperature_c"],
+            name="Maximum",
+            line=dict(color="#ff4d6d", width=2)
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=win["timestamp"],
+            y=win["average_cell_temperature_c"],
+            name="Average",
+            line=dict(color="#ffb347", width=3)
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=win["timestamp"],
+            y=win["min_cell_temperature_c"],
+            name="Minimum",
+            line=dict(color="#00d4aa", width=2)
+        ))
+
+        fig.update_layout(
+            **PLOT_CFG,
+            title="🌡 Cell Temperature Profile",
+            height=250
+        )
+
+        st.plotly_chart(fig, width="stretch")
+       st.markdown("<br>", unsafe_allow_html=True)
+
+st.subheader("📊 Battery Performance Trends")
+
+c4, c5 = st.columns(2)
+
+with c4:
+
+    ts_chart(
+        battery_df,
+        location,
+        "state_of_health_soh_pct",
+        "🔋 Battery Health Degradation",
+        "#4a9eff"
+    )
+
+with c5:
+
+    ts_chart(
+        battery_df,
+        location,
+        "internal_resistance_mohm",
+        "⚙ Internal Resistance (Battery Aging)",
+        "#a78bfa"
+    )
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.subheader("🩺 Battery Health Assessment")
+
+col1, col2 = st.columns(2)
+
+# ---------------- LEFT : HEALTH ----------------
+
+with col1:
+
+    thermal = "🟢 NORMAL"
+    thermal_color = "#00d4aa"
+
+    if temp >= 45:
+        thermal = "🔴 HIGH TEMPERATURE"
+        thermal_color = "#ff4d6d"
+    elif temp >= 38:
+        thermal = "🟡 ELEVATED"
+        thermal_color = "#ffb347"
+
+    if soh >= 90:
+        aging = "🟢 EXCELLENT"
+        aging_color = "#00d4aa"
+    elif soh >= 80:
+        aging = "🟡 GOOD"
+        aging_color = "#ffb347"
+    else:
+        aging = "🔴 DEGRADED"
+        aging_color = "#ff4d6d"
+
+    if ir <= 2:
+        resistance = "🟢 NORMAL"
+        resistance_color = "#00d4aa"
+    elif ir <= 4:
+        resistance = "🟡 INCREASING"
+        resistance_color = "#ffb347"
+    else:
+        resistance = "🔴 HIGH"
+        resistance_color = "#ff4d6d"
+
+    st.markdown(f"""
+<div class="kpi-box">
+
+### Battery Diagnostics
+
+<b>Thermal Status</b><br>
+<span style="color:{thermal_color};font-size:18px">{thermal}</span>
+
+<hr>
+
+<b>Battery Aging</b><br>
+<span style="color:{aging_color};font-size:18px">{aging}</span>
+
+<hr>
+
+<b>Internal Resistance</b><br>
+<span style="color:{resistance_color};font-size:18px">{resistance}</span>
+
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- RIGHT : EVENTS ----------------
+
+with col2:
+
+    st.markdown("""
+<div class="kpi-box">
+
+### 📢 Live Battery Events
+""", unsafe_allow_html=True)
+
+    if soc > 90:
+        st.markdown(
+            '<div class="alarm-ok">🟢 Battery SOC above 90%</div>',
+            unsafe_allow_html=True
+        )
+
+    elif soc < 20:
+        st.markdown(
+            '<div class="alarm-crit">🔴 Battery SOC critically low</div>',
+            unsafe_allow_html=True
+        )
+
+    else:
+        st.markdown(
+            '<div class="alarm-ok">🟢 Battery SOC within operating range</div>',
+            unsafe_allow_html=True
+        )
+
+    if temp > 40:
+        st.markdown(
+            '<div class="alarm-warn">🟡 Cell temperature elevated</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<div class="alarm-ok">🟢 Cell temperature normal</div>',
+            unsafe_allow_html=True
+        )
+
+    if soh > 90:
+        st.markdown(
+            '<div class="alarm-ok">🟢 Battery health excellent</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<div class="alarm-warn">🟡 Battery aging observed</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown(
+        f'<div class="alarm-ok">🔄 Cycle Count : {int(cyc)}</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f'<div class="alarm-ok">⏳ Estimated Remaining Life : {rul:.1f} years</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: PCS
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "⚡ Power Conversion (PCS)":
-    st.markdown("## ⚡ Power Conversion System (PCS)")
+
+    st.markdown("# ⚡ Power Conversion System (PCS)")
+    st.caption(
+        "Live Inverter Monitoring • Grid Synchronization • Power Electronics"
+    )
+
     row = get_row(pcs_df, location)
 
     if row is None:
         st.warning("PCS data not available.")
+
     else:
-        eff  = sv(row, "conversion_efficiency_pct", 0)
-        pwr  = sv(row, "active_power_kw",           0)
-        rpwr = sv(row, "reactive_power_kvar",        0)
-        freq = sv(row, "grid_frequency_hz",         50)
-        pf   = sv(row, "power_factor_overall",       1)
-        igbt = sv(row, "igbt_temperature_c",         0)
-        thd  = sv(row, "voltage_thd_pct",            0)
-        mode = str(sv(row, "operating_mode",    "standby"))
+
+        eff = sv(row, "conversion_efficiency_pct", 0)
+        pwr = sv(row, "active_power_kw", 0)
+        rpwr = sv(row, "reactive_power_kvar", 0)
+        freq = sv(row, "grid_frequency_hz", 50)
+        pf = sv(row, "power_factor_overall", 1)
+        igbt = sv(row, "igbt_temperature_c", 0)
+        thd = sv(row, "voltage_thd_pct", 0)
+        mode = str(sv(row, "operating_mode", "Standby"))
+
+        dc_bus = sv(row, "dc_bus_voltage_v", 0)
+        dc_current = sv(row, "dc_current_battery_side_a", 0)
+        kva = sv(row, "apparent_power_kva", 0)
+        op_hours = sv(row, "total_operating_hours", 0)
+
+        # ---------------- STATUS ----------------
+
+        if "grid" in mode.lower():
+            status = "🟢 GRID CONNECTED"
+            status_color = "#00d4aa"
+
+        elif "standby" in mode.lower():
+            status = "🟡 STANDBY"
+            status_color = "#ffb347"
+
+        else:
+            status = "🔵 ACTIVE"
+            status_color = "#4a9eff"
+
+        st.markdown(
+            f"""
+<div style="
+background:#0d1f3c;
+border-left:6px solid {status_color};
+padding:14px;
+border-radius:10px;
+margin-bottom:18px;
+color:white;
+">
+
+<b>{status}</b>
+
+&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+
+⚡ Operating Mode :
+<b>{mode.upper()}</b>
+
+&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+
+📍 {location}
+
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
         kpi_row([
-            ("Active Power",   f"{pwr:.2f}",  "kW",  "#4a9eff"),
-            ("Conv. Eff.",      f"{eff:.2f}",  "%",   "#00d4aa"),
-            ("Power Factor",   f"{pf:.4f}",   "",    "#a78bfa"),
-            ("Grid Frequency", f"{freq:.3f}", "Hz",  "#ffb347"),
-            ("IGBT Temp",      f"{igbt:.1f}", "°C",  "#ff6b9d"),
-            ("Mode",           mode.upper(),  "",    "#4a9eff"),
+            ("Active Power", f"{pwr:.1f}", "kW", "#4a9eff"),
+            ("Reactive Power", f"{rpwr:.1f}", "kVAR", "#ffb347"),
+            ("Efficiency", f"{eff:.2f}", "%", "#00d4aa"),
+            ("Power Factor", f"{pf:.3f}", "", "#a78bfa"),
+            ("Grid Frequency", f"{freq:.3f}", "Hz", "#00d4aa"),
+            ("IGBT Temp", f"{igbt:.1f}", "°C", "#ff6b9d"),
         ])
 
         st.markdown("<br>", unsafe_allow_html=True)
+
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+
+        with m1:
+            st.metric("DC Bus Voltage", f"{dc_bus:.1f} V")
+
+        with m2:
+            st.metric("DC Current", f"{dc_current:.1f} A")
+
+        with m3:
+            st.metric("Apparent Power", f"{kva:.1f} kVA")
+
+        with m4:
+            st.metric("Voltage THD", f"{thd:.2f} %")
+
+        with m5:
+            st.metric("Operating Hours", f"{op_hours:.0f}")
+
+        with m6:
+            st.metric("Operating Mode", mode.upper())
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         c1, c2, c3 = st.columns(3)
         with c1:
             ts_chart(pcs_df, location,
