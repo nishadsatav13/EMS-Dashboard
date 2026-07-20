@@ -231,17 +231,16 @@ def ts_chart(df, loc, y_col, title, color="#00d4aa", n=96):
 # ── KPI helper ────────────────────────────────────────────────────────────────
 def kpi_row(items):
     cols = st.columns(len(items))
+
     for col, (label, val, unit, color) in zip(cols, items):
         col.markdown(f"""
         <div class="kpi-box" style="border-top:3px solid {color}">
-          <div class="kpi-label">{label}</div>
-          <div class="kpi-val" style="color:{color}">{val}
-            <span class="kpi-unit">{unit}</span>
-          </div>
-        </div>""", unsafe_allow_html=True)
-        st.info(
-    f"🟢 LIVE  |  📍 {location}  |  🔄 Refresh: 3 sec"
-)
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-val" style="color:{color}">
+                {val}<span class="kpi-unit">{unit}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -278,6 +277,7 @@ if page == "🏠 Master Overview":
         ("Power Factor", pf, "", "#00d4aa"),
         ("Breaker Position", brk, "", "#ff6b9d"),
     ])
+    st.info(f"🟢 LIVE  |  📍 {location}  |  🔄 Refresh: 3 sec")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
