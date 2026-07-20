@@ -458,7 +458,7 @@ elif page == "🔋 Battery Storage (LFP)":
             ("Cycle Count", f"{cyc:.0f}", "", "#a78bfa"),
         ])
 
-              st.markdown("<br>", unsafe_allow_html=True)
+         st.markdown("<br>", unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
 
