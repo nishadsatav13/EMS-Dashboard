@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-count = st_autorefresh(interval=5000, key="neoai_refresh")
+count = st_autorefresh(interval=10000, key="neoai_refresh")
 st.session_state.tick = count
 
 # ── Dark theme CSS ────────────────────────────────────────────────────────────
