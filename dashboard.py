@@ -1617,14 +1617,16 @@ elif page == "🚨 Alarms & Faults":
 # PAGE: FORECAST & AI ADVISORY
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔮 Forecast & AI Advisory":
+
     st.markdown("## 🔮 Forecast & AI Advisory")
-
-    # ... [Keep your existing forecast charts here] ...
-
     st.markdown("---")
     st.markdown("### 🤖 Autonomous ABB Expert Agent")
 
-    # Find the first component with an active fault
+    # =====================================================
+    # TEST MODE
+    # =====================================================
+    TEST_MODE = True      # Change to False when using real faults
+
     fault_component = None
     active_row = None
 
@@ -1633,10 +1635,12 @@ elif page == "🔮 Forecast & AI Advisory":
         ("PCS", pcs_df),
         ("Transformer", xfmr_df),
         ("Switchgear", swgr_df),
-        ("Transmission Line", tline_df)
+        ("Transmission Line", tline_df),
     ]
 
+    # Search real faults
     for name, df in components:
+
         row = get_row(df, location)
 
         if row is not None and int(sv(row, "is_fault", 0)) == 1:
@@ -1644,70 +1648,113 @@ elif page == "🔮 Forecast & AI Advisory":
             active_row = row
             break
 
-    # =====================================================
-    # TEMPORARY TEST MODE (REMOVE AFTER TESTING)
-    # =====================================================
-    if active_row is None:
-        test_row = get_row(battery_df, location)
+    # -----------------------------
+    # Fake fault for demo
+    # -----------------------------
+    if TEST_MODE and active_row is None:
 
-        if test_row is not None:
-            active_row = test_row.copy()
+        row = get_row(battery_df, location)
+
+        if row is not None:
+
+            active_row = row.copy()
+
             fault_component = "Battery"
 
             active_row["is_fault"] = 1
             active_row["fault_type"] = "Cell Over Temperature"
 
-            # Optional: make telemetry look realistic
-            active_row["temperature"] = 72
-            active_row["soc"] = 91
+            active_row["average_cell_temperature_c"] = 72
+            active_row["state_of_charge_soc_pct"] = 91
+
     # =====================================================
 
-    if active_row is not None:
+    if active_row is None:
 
-        fault_name = sv(active_row, "fault_type", "Unknown Anomaly")
-        telemetry = active_row.to_dict()
-
-        st.error(f"🚨 **Critical Alert Detected:** {fault_name}")
-
-        current_fault = f"{fault_component}:{fault_name}"
-
-        # Call AI only when the fault changes
-        if st.session_state.last_fault != current_fault:
-
-            with st.spinner("ABB Agent is consulting the manual..."):
-
-                advice = generate_rag_advisory(
-                    f"""
-Component: {fault_component}
-
-Fault: {fault_name}
-
-Telemetry:
-{telemetry}
-"""
-                )
-
-            st.session_state.last_fault = current_fault
-            st.session_state.last_advice = advice
-
-        else:
-            advice = st.session_state.last_advice
-
-        # Display AI Result
-        st.write(f"**Severity:** `{advice.severity}`")
-        st.write(f"**Matched Component:** {advice.matched_component}")
-        st.write(f"**Risk Analysis:** {advice.risk_analysis}")
-
-        st.write("**Required Actions:**")
-        for action in advice.actions_required:
-            st.markdown(f"- ✅ {action}")
-
-    else:
-        # Clear cache when system returns to normal
         st.session_state.last_fault = None
         st.session_state.last_advice = None
 
         st.success("✅ System Nominal. No expert intervention required.")
+
+    else:
+
+        fault_name = str(sv(active_row, "fault_type", "Unknown Fault"))
+
+        st.error(f"🚨 Critical Alert : {fault_component} - {fault_name}")
+
+        # ------------------------------------------
+        # Only useful telemetry
+        # ------------------------------------------
+
+        if fault_component == "Battery":
+
+            telemetry = {
+                "Temperature (°C)": sv(active_row, "average_cell_temperature_c", 0),
+                "SOC (%)": sv(active_row, "state_of_charge_soc_pct", 0),
+                "SOH (%)": sv(active_row, "state_of_health_soh_pct", 0),
+                "Voltage (V)": sv(active_row, "pack_voltage_v", 0),
+                "Power (kW)": sv(active_row, "battery_power_kw", 0),
+            }
+
+        else:
+
+            telemetry = {}
+
+        current_fault = (
+            location,
+            fault_component,
+            fault_name,
+        )
+
+        regenerate = (
+            st.session_state.last_fault != current_fault
+            or st.session_state.last_advice is None
+        )
+
+        if regenerate:
+
+            with st.spinner("Consulting ABB Expert Agent..."):
+
+                prompt = f"""
+You are an ABB Battery Energy Storage expert.
+
+Component:
+{fault_component}
+
+Fault:
+{fault_name}
+
+Telemetry:
+{telemetry}
+
+Provide:
+
+1. Severity
+2. Risk Analysis
+3. Recommended Actions
+"""
+
+                advice = generate_rag_advisory(prompt)
+
+            st.session_state.last_fault = current_fault
+            st.session_state.last_advice = advice
+
+        advice = st.session_state.last_advice
+
+        st.success("✅ AI Advisory Ready")
+
+        st.markdown(f"### 🔥 Severity\n**{advice.severity}**")
+
+        st.markdown(f"### 🧩 Component\n{advice.matched_component}")
+
+        st.markdown("### ⚠️ Risk Analysis")
+        st.write(advice.risk_analysis)
+
+        st.markdown("### ✅ Recommended Actions")
+
+        for action in advice.actions_required:
+            st.markdown(f"- {action}")
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ALWAYS-ON LIVE REFRESH — 3 second tick, no toggle needed
 # ═══════════════════════════════════════════════════════════════════════════════
