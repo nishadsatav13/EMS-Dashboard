@@ -14,5 +14,3 @@ langchain-huggingface
 langchain-chroma
 chromadb
 sentence-transformers
-transformers==4.37.2
-torchvision
