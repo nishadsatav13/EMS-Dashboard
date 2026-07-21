@@ -1297,6 +1297,11 @@ color:white;
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔧 Main Switchgear Panel":
     st.markdown("## 🔧 Main Switchgear Panel")
+    st.caption(
+        "Real-time monitoring of switchgear health, breaker operation, "
+        "busbar condition, protection systems and power quality."
+    )
+    
     row = get_row(swgr_df, location)
 
     if row is None:
@@ -1311,17 +1316,42 @@ elif page == "🔧 Main Switchgear Panel":
         pwr    = sv(row, "active_power_kw",                0)
         pf     = sv(row, "power_factor",                   1)
 
+        status = "🟢 HEALTHY"
+        if pd_lvl > 20:
+            status = "🟡 WARNING"
+        if pd_lvl > 50:
+            status = "🔴 CRITICAL"
+
+        st.info(
+            f"**System Status:** {status} | "
+            f"Breaker: **{brk.upper()}** | "
+            f"Grid Frequency: **{freq:.2f} Hz**"
+        )
+
         kpi_row([
             ("Breaker Position",  brk.upper(),    "", "#a78bfa"),
             ("SF6 Gas Pressure",  f"{sf6:.2f}",  "bar","#4a9eff"),
             ("Contact Wear",      f"{wear:.1f}", "%", "#ffb347"),
-            ("Partial Discharge", f"{pd_lvl:.0f}","pC","#ff4d6d"),
+            ("PD Level", f"{pd_lvl:.0f}","pC","#ff4d6d"),
             ("Active Power",      f"{pwr:.2f}",  "kW","#00d4aa"),
             ("Power Factor",      f"{pf:.4f}",   "",  "#a78bfa"),
         ])
+        
+        st.markdown("### ⚙️ Engineering Metrics")
+        
+        kpi_row([
+            ("Breaker Temp", f"{sv(row,'breaker_contact_temperature_c',0):.1f}", "°C", "#ff4d6d"),
+            ("Load Factor", f"{sv(row,'load_factor_pct',0):.1f}", "%", "#4a9eff"),
+            ("Operations", f"{sv(row,'breaker_total_operations_counter',0):,.0f}", "", "#a78bfa"),
+            ("Open Time", f"{sv(row,'breaker_opening_time_ms',0):.1f}", "ms", "#00d4aa"),
+            ("Close Time", f"{sv(row,'breaker_closing_time_ms',0):.1f}", "ms", "#00d4aa"),
+            ("Contact Resistance", f"{sv(row,'contact_resistance_microohm',0):.1f}", "µΩ", "#ffb347"),
+        ])
 
         st.markdown("<br>", unsafe_allow_html=True)
+        
         c1, c2, c3 = st.columns(3)
+        
         with c1:
             win = get_window(swgr_df, location)
             if not win.empty:
@@ -1340,18 +1370,138 @@ elif page == "🔧 Main Switchgear Panel":
             ts_chart(swgr_df, location,
                      "partial_discharge_level_pc",
                      "Partial Discharge (pC)", "#ff4d6d")
+                     
         with c3:
             ts_chart(swgr_df, location,
                      "insulation_resistance_mohm",
                      "Insulation Resistance (MΩ)", "#00d4aa")
 
         c4, c5 = st.columns(2)
+
         with c4:
-            ts_chart(swgr_df, location,
-                     "active_power_kw", "Active Power (kW)", "#a78bfa")
+            win = get_window(swgr_df, location)
+            if not win.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["current_phase_a_a"],
+                    name="Phase A",
+                    line=dict(color="#ff4d6d", width=2)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["current_phase_b_a"],
+                    name="Phase B",
+                    line=dict(color="#ffb347", width=2)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["current_phase_c_a"],
+                    name="Phase C",
+                    line=dict(color="#4a9eff", width=2)
+                ))
+                fig.update_layout(
+                    **PLOT_CFG,
+                    title="Three Phase Current (A)",
+                    height=250
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
         with c5:
-            ts_chart(swgr_df, location,
-                     "grid_frequency_hz", "Grid Frequency (Hz)", "#4a9eff")
+            win = get_window(swgr_df, location)
+            if not win.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["voltage_phase_a_v"],
+                    name="Phase A",
+                    line=dict(color="#ff4d6d", width=2)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["voltage_phase_b_v"],
+                    name="Phase B",
+                    line=dict(color="#ffb347", width=2)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=win["timestamp"],
+                    y=win["voltage_phase_c_v"],
+                    name="Phase C",
+                    line=dict(color="#4a9eff", width=2)
+                ))
+                fig.update_layout(
+                    **PLOT_CFG,
+                    title="Three Phase Voltage (V)",
+                    height=250
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+        st.markdown("---")
+        st.markdown("### 🩺 Diagnostics")
+
+        d1, d2, d3, d4 = st.columns(4)
+
+        # ---------------------------------------------------
+        # Breaker
+        # ---------------------------------------------------
+        with d1:
+            st.metric("Breaker", brk.upper())
+            st.metric("Operations", f"{int(sv(row,'breaker_total_operations_counter',0)):,}")
+            st.metric("Wear", f"{wear:.1f}%")
+
+        # ---------------------------------------------------
+        # Protection
+        # ---------------------------------------------------
+        with d2:
+            st.metric("OC Relay", sv(row, "overcurrent_relay_51_status", "N/A"))
+            st.metric("Earth Fault", sv(row, "earth_fault_relay_51n_status", "N/A"))
+            st.metric("87 Relay", sv(row, "differential_protection_87_status", "N/A"))
+
+        # ---------------------------------------------------
+        # Communication
+        # ---------------------------------------------------
+        with d3:
+            st.metric("SCADA", sv(row, "scada_ems_communication_status", "N/A"))
+            st.metric("IEC 61850", sv(row, "iec61850_goose_comm_status", "N/A"))
+            st.metric("Mode", sv(row, "breaker_control_mode", "N/A"))
+
+        # ---------------------------------------------------
+        # Equipment
+        # ---------------------------------------------------
+        with d4:
+            st.metric("SF6", f"{sf6:.2f} bar")
+            st.metric("Humidity", f"{sv(row,'enclosure_humidity_pct',0):.1f}%")
+            st.metric("Cabinet Temp", f"{sv(row,'enclosure_internal_temperature_c',0):.1f} °C")
+            
+        st.markdown("---")
+        st.markdown("### 📋 Live Events")
+
+        events = []
+
+        if brk.lower() == "closed":
+            events.append("🟢 Main breaker closed")
+        else:
+            events.append("🟡 Main breaker open")
+
+        if pd_lvl > 50:
+            events.append("🔴 High partial discharge detected")
+        elif pd_lvl > 20:
+            events.append("🟡 Partial discharge increasing")
+
+        if wear > 80:
+            events.append("🟡 Contact wear approaching maintenance limit")
+
+        if str(sv(row, "scada_ems_communication_status", "")).lower() != "connected":
+            events.append("🔴 SCADA communication lost")
+
+        if sf6 < 5.5:
+            events.append("🔴 SF6 gas pressure low")
+
+        if not events:
+            events.append("🟢 No active alarms")
+
+        for event in events:
+            st.markdown(event)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1359,6 +1509,11 @@ elif page == "🔧 Main Switchgear Panel":
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "📡 Transmission & Grid Line":
     st.markdown("## 📡 Transmission & Grid Line")
+    st.caption(
+        "Real-time monitoring of transmission line loading, electrical parameters, "
+        "protection systems and grid conditions."
+    )
+    
     row = get_row(tline_df, location)
 
     if row is None:
@@ -1371,6 +1526,24 @@ elif page == "📡 Transmission & Grid Line":
         freq    = sv(row, "grid_frequency_receiving_end_hz", 50)
         vdrop   = sv(row, "voltage_drop_across_line_v", 0)
         pf      = sv(row, "power_factor_at_pcc", 1)
+        
+        # ---------------------------------------------------
+        # Overall Status
+        # ---------------------------------------------------
+
+        status = "🟢 HEALTHY"
+
+        if loading > 80 or cond_t > 75:
+            status = "🟡 WARNING"
+
+        if loading > 95 or cond_t > 90:
+            status = "🔴 CRITICAL"
+
+        st.info(
+            f"**Status:** {status}   |   "
+            f"**Loading:** {loading:.1f}%   |   "
+            f"**Receiving Frequency:** {freq:.2f} Hz"
+        )
 
         kpi_row([
             ("Line Loading",     f"{loading:.1f}", "%", "#ff6b9d"),
@@ -1380,7 +1553,18 @@ elif page == "📡 Transmission & Grid Line":
             ("Voltage Drop",     f"{vdrop:.1f}", "V", "#a78bfa"),
             ("Power Factor PCC", f"{pf:.4f}", "", "#4a9eff"),
         ])
+        
+        st.markdown("### ⚙️ Engineering Metrics")
 
+        kpi_row([
+            ("Ampacity", f"{sv(row,'dynamic_line_rating_a',0):.0f}", "A", "#00d4aa"),
+            ("Utilisation", f"{sv(row,'line_utilisation_factor_pct',0):.1f}", "%", "#4a9eff"),
+            ("Ambient Temp", f"{sv(row,'ambient_air_temperature_c',0):.1f}", "°C", "#ffb347"),
+            ("Wind Speed", f"{sv(row,'wind_speed_m_per_s',0):.1f}", "m/s", "#a78bfa"),
+            ("Voltage THD", f"{sv(row,'voltage_thd_receiving_end_pct',0):.2f}", "%", "#ff6b9d"),
+            ("Current Unbalance", f"{sv(row,'current_unbalance_factor_pct',0):.2f}", "%", "#ff4d6d"),
+        ])
+        
         st.markdown("<br>", unsafe_allow_html=True)
 
         c1, c2, c3 = st.columns(3)
@@ -1404,13 +1588,46 @@ elif page == "📡 Transmission & Grid Line":
             )
 
         with c3:
-            ts_chart(
-                tline_df,
-                location,
-                "grid_frequency_receiving_end_hz",
-                "Receiving End Frequency (Hz)",
-                "#00d4aa",
-            )
+            win = get_window(tline_df, location)
+
+            if not win.empty:
+
+                fig = go.Figure()
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=win["timestamp"],
+                        y=win["line_current_phase_a_a"],
+                        name="Phase A",
+                        line=dict(color="#ff4d6d", width=1.5),
+                    )
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=win["timestamp"],
+                        y=win["line_current_phase_b_a"],
+                        name="Phase B",
+                        line=dict(color="#ffb347", width=1.5),
+                    )
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=win["timestamp"],
+                        y=win["line_current_phase_c_a"],
+                        name="Phase C",
+                        line=dict(color="#4a9eff", width=1.5),
+                    )
+                )
+
+                fig.update_layout(
+                    **PLOT_CFG,
+                    title="Line Current (A)",
+                    height=220,
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
 
         c4, c5 = st.columns(2)
 
@@ -1483,11 +1700,72 @@ elif page == "📡 Transmission & Grid Line":
                 "Conductor Temperature (°C)",
                 "#ffb347",
             )
+            
+        st.markdown("---")
+        st.markdown("### 🩺 Diagnostics")
+
+        d1, d2, d3, d4 = st.columns(4)
+        
+        with d1:
+            st.metric("Availability", sv(row, "line_availability_status", "N/A"))
+            st.metric("Loading", f"{loading:.1f}%")
+            st.metric("Ampacity", f"{sv(row,'dynamic_line_rating_a',0):.0f} A")
+            
+        with d2:
+            st.metric("Distance Relay", sv(row, "distance_relay_21_status", "N/A"))
+            st.metric("OC Relay", sv(row, "overcurrent_relay_51_status", "N/A"))
+            st.metric("Earth Fault", sv(row, "earth_fault_relay_51n_status", "N/A"))
+            
+        with d3:
+            st.metric("Protection Comm", sv(row, "line_protection_comm_status", "N/A"))
+            st.metric("Telemetry", f"{sv(row,'scada_telemetry_latency_ms',0):.1f} ms")
+            st.metric("Latency", f"{sv(row,'command_response_time_ms',0):.1f} ms")
+            
+        with d4:
+            st.metric("Ambient", f"{sv(row,'ambient_air_temperature_c',0):.1f} °C")
+            st.metric("Wind", f"{sv(row,'wind_speed_m_per_s',0):.1f} m/s")
+            st.metric("Lightning", f"{int(sv(row,'lightning_strike_count_day',0))}")
+            
+        st.markdown("---")
+        st.markdown("### 📋 Live Grid Events")
+
+        events = []
+
+        if loading > 90:
+            events.append("🔴 Transmission line heavily loaded")
+        elif loading > 75:
+            events.append("🟡 High transmission line loading")
+
+        if cond_t > 80:
+            events.append("🟡 Conductor temperature elevated")
+
+        if bool(sv(row, "vegetation_clearance_violation_status", False)):
+            events.append("🟡 Vegetation clearance violation")
+
+        if bool(sv(row, "right_of_way_intrusion_alert", False)):
+            events.append("🔴 Right-of-way intrusion detected")
+
+        if bool(sv(row, "bird_streamer_flashover_risk", False)):
+            events.append("🟡 Bird streamer flashover risk")
+
+        if int(sv(row, "lightning_strike_count_day", 0)) > 0:
+            events.append(
+                f"⚡ {int(sv(row,'lightning_strike_count_day',0))} lightning strike(s) recorded today"
+            )
+
+        if not events:
+            events.append("🟢 No active transmission line events")
+
+        for event in events:
+            st.markdown(event)
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: ALARMS
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🚨 Alarms & Faults":
     st.markdown("## 🚨 Alarms & Faults")
+    st.caption(
+        "Centralized monitoring of active alarms, equipment faults and historical fault events."
+    )
 
     comps = [
         ("Battery", battery_df),
@@ -1497,6 +1775,9 @@ elif page == "🚨 Alarms & Faults":
     ]
 
     any_fault = False
+    critical_count = 0
+    warning_count = 0
+    healthy_count = 0
 
     for name, df_ref in comps:
         r = get_row(df_ref, location)
@@ -1527,23 +1808,43 @@ elif page == "🚨 Alarms & Faults":
             cls = "alarm-crit"
             icon = "🔴"
             any_fault = True
+            critical_count += 1
         elif is_f:
             cls = "alarm-warn"
             icon = "🟡"
             any_fault = True
+            warning_count += 1
         else:
             cls = "alarm-ok"
             icon = "🟢"
+            healthy_count += 1
 
         msg = f"{icon} [{name}] {ft.replace('_',' ').upper()} — Severity: {sev.upper()}"
         st.markdown(f'<div class="{cls}">{msg}</div>', unsafe_allow_html=True)
+
+    st.markdown("### 📊 Alarm Summary")
+
+    kpi_row([
+        ("Critical", f"{critical_count}", "", "#ff4d6d"),
+        ("Warnings", f"{warning_count}", "", "#ffb347"),
+        ("Healthy", f"{healthy_count}", "", "#00d4aa"),
+        ("Components", f"{len(comps)}", "", "#4a9eff"),
+    ])
+    
+    st.markdown("### 📊 Alarm Summary")
+
+    kpi_row([
+        ("Critical", f"{critical_count}", "", "#ff4d6d"),
+        ("Warnings", f"{warning_count}", "", "#ffb347"),
+        ("Healthy", f"{healthy_count}", "", "#00d4aa"),
+        ("Components", f"{len(comps)}", "", "#4a9eff"),
+    ])
 
     if not any_fault:
         st.success("✅ All systems normal — no active faults.")
 
     st.markdown("---")
-    st.markdown("### Fault Event History")
-
+    st.markdown("### 📈 Fault Timeline")
     fault_frames = []
 
     for name, df_ref in comps:
@@ -1611,21 +1912,74 @@ elif page == "🚨 Alarms & Faults":
                 title="Fault Timeline",
                 height=280,
             )
+            
+            fig.update_layout(
+                **PLOT_CFG,
+                legend_title="Severity",
+                hovermode="closest",
+            )
 
-            fig.update_layout(**PLOT_CFG)
+            fig.update_yaxes(categoryorder="total ascending")
+
             fig.update_traces(marker=dict(size=10))
 
             st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(all_faults.reset_index(drop=True), width='stretch')
+            
+            st.markdown("### 📊 Fault Severity Distribution")
+
+            severity_counts = (
+                all_faults["fault_severity"]
+                .astype(str)
+                .str.upper()
+                .value_counts()
+                .reset_index()
+            )
+
+            severity_counts.columns = ["Severity", "Count"]
+
+            fig2 = px.pie(
+                severity_counts,
+                names="Severity",
+                values="Count",
+                hole=0.6,
+                color="Severity",
+                color_discrete_map={
+                    "CRITICAL": "#ff4d6d",
+                    "HIGH": "#ff8c00",
+                    "MEDIUM": "#ffb347",
+                    "LOW": "#00d4aa",
+                },
+            )
+
+            fig2.update_layout(
+                **PLOT_CFG,
+                height=300,
+            )
+
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            st.markdown("### 📋 Recent Fault Log")
+            
+            st.dataframe(
+                all_faults.reset_index(drop=True),
+                hide_index=True,
+                width="stretch",
+            )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: FORECAST & AI ADVISORY
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔮 Forecast & AI Advisory":
 
-    st.markdown("## 🔮 Forecast & AI Advisory")
+    st.markdown("## 🤖 Forecast & AI Advisory")
+
+    st.caption(
+        "Fault diagnosis, risk assessment and operational recommendations "
+        "using live BESS telemetry and OEM knowledge."
+    )
+    
     st.markdown("---")
-    st.markdown("### 🤖 Autonomous ABB Expert Agent")
+    st.markdown("### 🤖 Autonomous Agent")
 
     # =====================================================
     # TEST MODE
@@ -1685,7 +2039,9 @@ elif page == "🔮 Forecast & AI Advisory":
 
         fault_name = str(sv(active_row, "fault_type", "Unknown Fault"))
 
-        st.error(f"🚨 Critical Alert : {fault_component} - {fault_name}")
+        st.warning(
+            f"🚨 **Active Fault:** {fault_component} • {fault_name}"
+        )
 
         # ------------------------------------------
         # Only useful telemetry
@@ -1746,20 +2102,28 @@ Provide:
 
         advice = st.session_state.last_advice
 
-        st.success("✅ AI Advisory Ready")
+        st.success("✅ AI analysis completed successfully")
 
-        st.markdown(f"### 🔥 Severity\n**{advice.severity}**")
+        kpi_row([
+            ("Severity", advice.severity.upper(), "", "#ff4d6d"),
+            ("Component", advice.matched_component, "", "#4a9eff"),
+            ("AI Status", "READY", "", "#00d4aa"),
+        ])
 
-        st.markdown(f"### 🧩 Component\n{advice.matched_component}")
+        st.markdown("### ⚠️ AI Risk Analysis")
 
-        st.markdown("### ⚠️ Risk Analysis")
-        st.write(advice.risk_analysis)
+        with st.container(border=True):
+            st.markdown(advice.risk_analysis)
 
         st.markdown("### ✅ Recommended Actions")
 
-        for action in advice.actions_required:
-            st.markdown(f"- {action}")
+        with st.container(border=True):
+            for action in advice.actions_required:
+                st.markdown(f"✔ {action}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# ALWAYS-ON LIVE REFRESH — 3 second tick, no toggle needed
-# ═══════════════════════════════════════════════════════════════════════════════
+    st.markdown("---")
+
+    st.caption(
+        "Analysis generated using NeoAI Expert Agent • "
+        "Groq Llama 3.1 • OEM Knowledge Base • Live Telemetry"
+    )
