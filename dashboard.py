@@ -955,46 +955,343 @@ color:white;
 # PAGE: TRANSFORMER
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🔌 Distribution Transformer":
-    st.markdown("## 🔌 Distribution Transformer")
+
+    st.markdown("# 🔌 Distribution Transformer")
+    st.caption(
+        "Oil-Cooled Power Transformer • Live Condition Monitoring • Protection & Thermal Analytics"
+    )
 
     if xfmr_df.empty:
-        st.warning("Transformer dataset not loaded. Add transformer_neoai_dataset.csv to repo.")
+        st.warning("Transformer dataset not loaded.")
+
     else:
+
         row = get_row(xfmr_df, location)
+
         if row is None:
             st.warning("No transformer data for this location.")
+
         else:
-            def find_col(df, patterns):
-                for p in patterns:
-                    for c in df.columns:
-                        if p.lower() in c.lower():
-                            return c
-                return None
 
-            load_col  = find_col(xfmr_df, ["load_pct","load_factor","loading"])
-            oil_col   = find_col(xfmr_df, ["oil_temp","oil_temperature"])
-            wind_col  = find_col(xfmr_df, ["winding_temp","winding_temperature"])
-            hot_col   = find_col(xfmr_df, ["hotspot","hot_spot"])
+            loading = sv(row, "transformer_loading_pct", 0)
+            top_oil = sv(row, "top_oil_temp_c", 0)
+            winding = sv(row, "winding_temp_c", 0)
+            hotspot = sv(row, "hotspot_temp_c", 0)
+            eff = sv(row, "transformer_efficiency_pct", 0)
+            losses = sv(row, "total_loss_kw", 0)
 
-            load_v = f"{sv(row, load_col, 0):.1f}"  if load_col  else "—"
-            oil_v  = f"{sv(row, oil_col,  0):.1f}"  if oil_col   else "—"
-            wind_v = f"{sv(row, wind_col, 0):.1f}"  if wind_col  else "—"
-            hot_v  = f"{sv(row, hot_col,  0):.1f}"  if hot_col   else "—"
+            apparent = sv(row, "apparent_power_kva", 0)
+            pf = sv(row, "power_factor", 0)
+            hv = sv(row, "primary_voltage_hv_v", 0)
+            lv = sv(row, "secondary_voltage_lv_v", 0)
+            active = sv(row, "active_power_secondary_kw", 0)
+            hours = sv(row, "total_operating_hours", 0)
+
+            fault = bool(sv(row, "is_fault", False))
+
+            # ---------------- STATUS ----------------
+
+            if fault:
+
+                status = "🔴 FAULT DETECTED"
+                status_color = "#ff4d6d"
+
+            elif loading >= 90:
+
+                status = "🟡 HIGH LOADING"
+                status_color = "#ffb347"
+
+            else:
+
+                status = "🟢 HEALTHY"
+                status_color = "#00d4aa"
+
+            st.markdown(
+                f"""
+<div style="
+background:#0d1f3c;
+border-left:6px solid {status_color};
+padding:14px;
+border-radius:10px;
+margin-bottom:18px;
+color:white;
+">
+
+<b>{status}</b>
+
+&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+
+🔌 Transformer Online
+
+&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+
+📍 {location}
+
+</div>
+""",
+                unsafe_allow_html=True,
+            )
 
             kpi_row([
-                ("Load Factor",     load_v, "%",  "#ffb347"),
-                ("Oil Temp",        oil_v,  "°C", "#ff4d6d"),
-                ("Winding Temp",    wind_v, "°C", "#ff6b9d"),
-                ("Hotspot Temp",    hot_v,  "°C", "#a78bfa"),
+                ("Loading", f"{loading:.1f}", "%", "#ffb347"),
+                ("Top Oil", f"{top_oil:.1f}", "°C", "#ff4d6d"),
+                ("Winding", f"{winding:.1f}", "°C", "#ff6b9d"),
+                ("Hotspot", f"{hotspot:.1f}", "°C", "#a78bfa"),
+                ("Efficiency", f"{eff:.2f}", "%", "#00d4aa"),
+                ("Total Loss", f"{losses:.2f}", "kW", "#4a9eff"),
             ])
 
-            if load_col:
-                ts_chart(xfmr_df, location, load_col,
-                         "Transformer Load (%)", "#ffb347")
-            if oil_col:
-                ts_chart(xfmr_df, location, oil_col,
-                         "Oil Temperature (°C)", "#ff4d6d")
+            st.markdown("<br>", unsafe_allow_html=True)
 
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
+
+            with m1:
+                st.metric("Active Power", f"{active:.1f} kW")
+
+            with m2:
+                st.metric("Apparent Power", f"{apparent:.1f} kVA")
+
+            with m3:
+                st.metric("Power Factor", f"{pf:.3f}")
+
+            with m4:
+                st.metric("HV Voltage", f"{hv:.0f} V")
+
+            with m5:
+                st.metric("LV Voltage", f"{lv:.0f} V")
+
+            with m6:
+                st.metric("Operating Hours", f"{hours:.0f}")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            c1, c2, c3 = st.columns(3)
+
+            with c1:
+                ts_chart(
+                    xfmr_df,
+                    location,
+                    "transformer_loading_pct",
+                    "📈 Transformer Loading Trend",
+                    "#ffb347"
+                )
+
+            with c2:
+                ts_chart(
+                    xfmr_df,
+                    location,
+                    "top_oil_temp_c",
+                    "🌡 Top Oil Temperature",
+                    "#ff4d6d"
+                )
+
+            with c3:
+                ts_chart(
+                    xfmr_df,
+                    location,
+                    "winding_temp_c",
+                    "🔥 Winding Temperature",
+                    "#ff6b9d"
+                )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            c4, c5 = st.columns(2)
+
+            with c4:
+
+                win = get_window(xfmr_df, location)
+
+                if not win.empty:
+
+                    fig = go.Figure()
+
+                    fig.add_trace(go.Scatter(
+                        x=win["timestamp"],
+                        y=win["phase_a_voltage_v"],
+                        name="Phase A",
+                        line=dict(color="#ff4d6d", width=2)
+                    ))
+
+                    fig.add_trace(go.Scatter(
+                        x=win["timestamp"],
+                        y=win["phase_b_voltage_v"],
+                        name="Phase B",
+                        line=dict(color="#ffb347", width=2)
+                    ))
+
+                    fig.add_trace(go.Scatter(
+                        x=win["timestamp"],
+                        y=win["phase_c_voltage_v"],
+                        name="Phase C",
+                        line=dict(color="#4a9eff", width=2)
+                    ))
+
+                    fig.update_layout(
+                        **PLOT_CFG,
+                        title="⚡ Three-Phase Voltage",
+                        height=260
+                    )
+
+                    st.plotly_chart(fig, width="stretch")
+
+            with c5:
+
+                ts_chart(
+                    xfmr_df,
+                    location,
+                    "transformer_efficiency_pct",
+                    "⚙ Transformer Efficiency",
+                    "#00d4aa"
+                )
+                st.markdown("<br>", unsafe_allow_html=True)
+
+            st.subheader("🩺 Transformer Diagnostics")
+
+            d1, d2 = st.columns(2)
+
+            # ---------------- LEFT : DIAGNOSTICS ----------------
+
+            with d1:
+
+                moisture = sv(row, "oil_moisture_ppm", 0)
+                dielectric = sv(row, "oil_dielectric_strength_kv", 0)
+                insulation = sv(row, "insulation_resistance_mohm", 0)
+
+                buchholz = bool(sv(row, "buchholz_relay_status", False))
+                diff_ok = bool(sv(row, "differential_protection_ok", True))
+
+                # Thermal
+                if hotspot < 90:
+                    thermal = "🟢 NORMAL"
+                    thermal_color = "#00d4aa"
+                elif hotspot < 110:
+                    thermal = "🟡 ELEVATED"
+                    thermal_color = "#ffb347"
+                else:
+                    thermal = "🔴 HIGH"
+                    thermal_color = "#ff4d6d"
+
+                # Oil Condition
+                if moisture < 20 and dielectric > 50:
+                    oil = "🟢 GOOD"
+                    oil_color = "#00d4aa"
+                elif moisture < 35:
+                    oil = "🟡 ACCEPTABLE"
+                    oil_color = "#ffb347"
+                else:
+                    oil = "🔴 ATTENTION"
+                    oil_color = "#ff4d6d"
+
+                # Protection
+                if diff_ok and not buchholz:
+                    protection = "🟢 HEALTHY"
+                    protection_color = "#00d4aa"
+                else:
+                    protection = "🔴 CHECK"
+                    protection_color = "#ff4d6d"
+
+                # Insulation
+                if insulation >= 100:
+                    ins = "🟢 EXCELLENT"
+                    ins_color = "#00d4aa"
+                elif insulation >= 50:
+                    ins = "🟡 GOOD"
+                    ins_color = "#ffb347"
+                else:
+                    ins = "🔴 LOW"
+                    ins_color = "#ff4d6d"
+
+                st.markdown(f"""
+<div class="kpi-box">
+
+### Transformer Diagnostics
+
+<b>Thermal Condition</b><br>
+<span style="color:{thermal_color};font-size:18px">{thermal}</span>
+
+<hr>
+
+<b>Oil Condition</b><br>
+<span style="color:{oil_color};font-size:18px">{oil}</span>
+
+<hr>
+
+<b>Protection Status</b><br>
+<span style="color:{protection_color};font-size:18px">{protection}</span>
+
+<hr>
+
+<b>Insulation Health</b><br>
+<span style="color:{ins_color};font-size:18px">{ins}</span>
+
+</div>
+""", unsafe_allow_html=True)
+
+            # ---------------- RIGHT : EVENTS ----------------
+
+            with d2:
+
+                st.markdown("""
+<div class="kpi-box">
+
+### 📢 Live Transformer Events
+""", unsafe_allow_html=True)
+
+                if loading < 80:
+                    st.markdown(
+                        '<div class="alarm-ok">🟢 Transformer loading within limits</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        '<div class="alarm-warn">🟡 High transformer loading observed</div>',
+                        unsafe_allow_html=True
+                    )
+
+                if top_oil < 70:
+                    st.markdown(
+                        '<div class="alarm-ok">🟢 Top oil temperature normal</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        '<div class="alarm-warn">🟡 Oil temperature elevated</div>',
+                        unsafe_allow_html=True
+                    )
+
+                if diff_ok:
+                    st.markdown(
+                        '<div class="alarm-ok">🟢 Differential protection healthy</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        '<div class="alarm-crit">🔴 Differential protection alarm</div>',
+                        unsafe_allow_html=True
+                    )
+
+                earth_fault = bool(sv(row, "earth_fault_status", False))
+
+                if earth_fault:
+                    st.markdown(
+                        '<div class="alarm-crit">🔴 Earth fault detected</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        '<div class="alarm-ok">🟢 No earth fault detected</div>',
+                        unsafe_allow_html=True
+                    )
+
+                tap = sv(row, "tap_changer_position", 0)
+
+                st.markdown(
+                    f'<div class="alarm-ok">⚙ Tap Changer Position : {tap}</div>',
+                    unsafe_allow_html=True
+                )
+
+                st.markdown("</div>", unsafe_allow_html=True)
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: SWITCHGEAR
 # ═══════════════════════════════════════════════════════════════════════════════
