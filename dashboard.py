@@ -1577,6 +1577,11 @@ elif page == "🚨 Alarms & Faults":
         faults = faults[
             ["timestamp", "fault_type", "fault_severity", "is_critical"]
         ].copy()
+        
+        # Fix mixed type columns — Arrow needs consistent types
+        faults["fault_type"] = faults["fault_type"].astype(str)
+        faults["fault_severity"] = faults["fault_severity"].astype(str)
+        faults["is_critical"] = faults["is_critical"].astype(int)
 
         faults["component"] = name
         fault_frames.append(faults)
@@ -1611,7 +1616,7 @@ elif page == "🚨 Alarms & Faults":
             fig.update_traces(marker=dict(size=10))
 
             st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(all_faults.reset_index(drop=True), use_container_width=True)
+            st.dataframe(all_faults.reset_index(drop=True), width='stretch')
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE: FORECAST & AI ADVISORY
