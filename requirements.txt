@@ -14,3 +14,5 @@ langchain-huggingface
 langchain-chroma
 chromadb
 sentence-transformers
+torch
+torchvision
