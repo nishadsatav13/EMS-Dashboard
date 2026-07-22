@@ -1993,7 +1993,7 @@ elif page == "🔮 Forecast & AI Advisory":
     # =====================================================
     # TEST MODE
     # =====================================================
-    TEST_MODE = True      # Change to False when using real faults
+    # Change to False when using real faults
 
     fault_component = None
     active_row = None
@@ -2017,15 +2017,7 @@ elif page == "🔮 Forecast & AI Advisory":
     # -----------------------------
     # Fake fault for demo
     # -----------------------------
-    if TEST_MODE and active_row is None:
-        row = get_row(battery_df, location)
-        if row is not None:
-            active_row = row.copy()
-            fault_component = "Battery"
-            active_row["is_fault"] = 1
-            active_row["fault_type"] = "Cell Over Temperature"
-            active_row["average_cell_temperature_c"] = 72
-            active_row["state_of_charge_soc_pct"] = 91
+    
 
     # =====================================================
 
