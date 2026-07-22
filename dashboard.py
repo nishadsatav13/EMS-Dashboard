@@ -2021,7 +2021,7 @@ elif page == "🔮 Forecast & AI Advisory":
 
         fault = str(sv(row, "fault_type", "Unknown"))
 
-        if (name, fault) in st.session_state.acknowledged_faults:
+        if name in st.session_state.acknowledged_faults:
             continue
 
         fault_component = name
@@ -2141,9 +2141,7 @@ Provide:
         st.markdown("---")
 
         if st.button("✅ Mark Actions Completed"):
-            st.session_state.acknowledged_faults.add(
-                (fault_component, fault_name)
-            )
+            st.session_state.acknowledged_faults.add(fault_component)
 
             st.session_state.last_fault = None
             st.session_state.last_advice = None
