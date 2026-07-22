@@ -2110,6 +2110,9 @@ Provide:
         else:
             advice = st.session_state.last_advice
 
+        # Restored the line requested, aligned to the correct indentation level
+        advice = st.session_state.last_advice
+        
         st.success("✅ AI analysis completed successfully")
 
         kpi_row([
