@@ -138,11 +138,16 @@ if "tick" not in st.session_state:
     st.session_state.tick = 0
 
 # ── AI Cache ─────────────────────────────────────────────────────────────────
+# --- AI Cache --------------------------------------------
+
 if "last_fault" not in st.session_state:
     st.session_state.last_fault = None
 
 if "last_advice" not in st.session_state:
     st.session_state.last_advice = None
+
+if "last_agent_call_time" not in st.session_state:
+    st.session_state.last_agent_call_time = 0
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -1972,6 +1977,10 @@ elif page == "🚨 Alarms & Faults":
 elif page == "🔮 Forecast & AI Advisory":
 
     st.markdown("## 🤖 Forecast & AI Advisory")
+    
+    if st.session_state.last_agent_call_time > 0:
+        age = int(time.time() - st.session_state.last_agent_call_time)
+        st.caption(f"Last AI analysis: {age} seconds ago")
 
     st.caption(
         "Fault diagnosis, risk assessment and operational recommendations "
@@ -1999,9 +2008,7 @@ elif page == "🔮 Forecast & AI Advisory":
 
     # Search real faults
     for name, df in components:
-
         row = get_row(df, location)
-
         if row is not None and int(sv(row, "is_fault", 0)) == 1:
             fault_component = name
             active_row = row
@@ -2011,32 +2018,23 @@ elif page == "🔮 Forecast & AI Advisory":
     # Fake fault for demo
     # -----------------------------
     if TEST_MODE and active_row is None:
-
         row = get_row(battery_df, location)
-
         if row is not None:
-
             active_row = row.copy()
-
             fault_component = "Battery"
-
             active_row["is_fault"] = 1
             active_row["fault_type"] = "Cell Over Temperature"
-
             active_row["average_cell_temperature_c"] = 72
             active_row["state_of_charge_soc_pct"] = 91
 
     # =====================================================
 
     if active_row is None:
-
         st.session_state.last_fault = None
         st.session_state.last_advice = None
-
         st.success("✅ System Nominal. No expert intervention required.")
 
     else:
-
         fault_name = str(sv(active_row, "fault_type", "Unknown Fault"))
 
         st.warning(
@@ -2046,9 +2044,7 @@ elif page == "🔮 Forecast & AI Advisory":
         # ------------------------------------------
         # Only useful telemetry
         # ------------------------------------------
-
         if fault_component == "Battery":
-
             telemetry = {
                 "Temperature (°C)": sv(active_row, "average_cell_temperature_c", 0),
                 "SOC (%)": sv(active_row, "state_of_charge_soc_pct", 0),
@@ -2056,9 +2052,7 @@ elif page == "🔮 Forecast & AI Advisory":
                 "Voltage (V)": sv(active_row, "pack_voltage_v", 0),
                 "Power (kW)": sv(active_row, "battery_power_kw", 0),
             }
-
         else:
-
             telemetry = {}
 
         current_fault = (
@@ -2067,15 +2061,24 @@ elif page == "🔮 Forecast & AI Advisory":
             fault_name,
         )
 
-        regenerate = (
+        time_since_last_call = (
+            time.time() - st.session_state.last_agent_call_time
+        )
+
+        fault_changed = (
             st.session_state.last_fault != current_fault
-            or st.session_state.last_advice is None
+        )
+
+        regenerate = (
+            fault_changed
+            or (
+                st.session_state.last_advice is None
+                and time_since_last_call > 300
+            )
         )
 
         if regenerate:
-
             with st.spinner("Consulting ABB Expert Agent..."):
-
                 prompt = f"""
 You are an ABB Battery Energy Storage expert.
 
@@ -2094,13 +2097,18 @@ Provide:
 2. Risk Analysis
 3. Recommended Actions
 """
+                try:
+                    advice = generate_rag_advisory(prompt)
 
-                advice = generate_rag_advisory(prompt)
+                    st.session_state.last_fault = current_fault
+                    st.session_state.last_advice = advice
+                    st.session_state.last_agent_call_time = time.time()
 
-            st.session_state.last_fault = current_fault
-            st.session_state.last_advice = advice
-
-        advice = st.session_state.last_advice
+                except Exception as e:
+                    st.error(f"Agent error: {e}")
+                    st.stop()
+        else:
+            advice = st.session_state.last_advice
 
         st.success("✅ AI analysis completed successfully")
 
