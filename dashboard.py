@@ -149,6 +149,9 @@ if "last_advice" not in st.session_state:
 if "last_agent_call_time" not in st.session_state:
     st.session_state.last_agent_call_time = 0
 
+if "acknowledged_faults" not in st.session_state:
+    st.session_state.acknowledged_faults = set()
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("<h2 style='color:#00d4aa'>⚡ NeoAI EMS</h2>",
@@ -2009,10 +2012,21 @@ elif page == "🔮 Forecast & AI Advisory":
     # Search real faults
     for name, df in components:
         row = get_row(df, location)
-        if row is not None and int(sv(row, "is_fault", 0)) == 1:
-            fault_component = name
-            active_row = row
-            break
+
+        if row is None:
+            continue
+
+        if int(sv(row, "is_fault", 0)) != 1:
+            continue
+
+        fault = str(sv(row, "fault_type", "Unknown"))
+
+        if (name, fault) in st.session_state.acknowledged_faults:
+            continue
+
+        fault_component = name
+        active_row = row
+        break
 
     # -----------------------------
     # Fake fault for demo
@@ -2123,7 +2137,22 @@ Provide:
         with st.container(border=True):
             for action in advice.actions_required:
                 st.markdown(f"✔ {action}")
+        
+        st.markdown("---")
 
+        if st.button("✅ Mark Actions Completed"):
+            st.session_state.acknowledged_faults.add(
+                (fault_component, fault_name)
+            )
+
+            st.session_state.last_fault = None
+            st.session_state.last_advice = None
+
+            st.success("Fault acknowledged. Monitoring next fault...")
+
+            st.rerun()
+
+    # Footer elements shown regardless of fault status
     st.markdown("---")
 
     st.caption(
