@@ -19,24 +19,24 @@ load_dotenv()
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 # ============================================================================
-# Structured Output
+# Structured Output Schema (Hardened against LLM formatting errors)
 # ============================================================================
 class BESSAdvisorySchema(BaseModel):
     severity: Literal["INFO", "WARNING", "CRITICAL"] = Field(
-        description="Calculated severity."
+        description="Calculated severity of the fault."
     )
     matched_component: str = Field(
-        description="Detected ABB component."
+        description="Detected ABB component (e.g., Battery, PCS, Transformer, Switchgear, Transmission Line)."
     )
     risk_analysis: str = Field(
-        description="Technical explanation."
+        description="Technical explanation of the fault and its risks."
     )
     actions_required: List[str] = Field(
-        description="Operator actions."
+        description="MUST be an array of individual strings (e.g., ['Step 1', 'Step 2']). Do not output a single continuous string."
     )
 
 # ============================================================================
-# Connect to Groq — only if key exists
+# Connect to Groq — strictly using structured output
 # ============================================================================
 llm = None
 structured_llm = None
@@ -51,7 +51,7 @@ if groq_api_key:
     structured_llm = llm.with_structured_output(BESSAdvisorySchema)
 
 # ============================================================================
-# Vector Database — only if folder exists
+# Vector Database
 # ============================================================================
 retriever = None
 
@@ -71,7 +71,7 @@ else:
     print(f"[NeoAI] WARNING: Vector DB not found at {VECTOR_PATH} or GROQ key missing.")
 
 # ============================================================================
-# RAG Function — same as original, just safe
+# RAG Function
 # ============================================================================
 def generate_rag_advisory(telemetry_alert: str) -> BESSAdvisorySchema:
 
@@ -81,11 +81,11 @@ def generate_rag_advisory(telemetry_alert: str) -> BESSAdvisorySchema:
             severity="WARNING",
             matched_component="Configuration Error",
             risk_analysis="GROQ_API_KEY not found. Add it to Streamlit Cloud Secrets.",
-            actions_required=["Go to Streamlit Cloud → Settings → Secrets → add GROQ_API_KEY"]
+            actions_required=["Go to Streamlit Cloud -> Settings -> Secrets -> add GROQ_API_KEY"]
         )
 
     # No LLM initialized
-    if llm is None:
+    if structured_llm is None:
         return BESSAdvisorySchema(
             severity="WARNING",
             matched_component="LLM Error",
@@ -112,44 +112,43 @@ def generate_rag_advisory(telemetry_alert: str) -> BESSAdvisorySchema:
         prompt = ChatPromptTemplate.from_messages([
             (
                 "system",
-                """You are the ABB BESS Expert Agent.
+                """You are the NeoAI Expert Agent for an industrial power plant.
 
-Use ONLY the retrieved OEM manual.
+                Use ONLY the retrieved OEM manual context to answer. 
+                If the context does not contain the answer, provide a safe, generic industrial isolation protocol.
 
-Rules:
-1. Never hallucinate.
-2. Never invent information.
-3. Base every answer only on the OEM manual.
-4. Identify component.
-5. Assess severity.
-6. Explain risk.
-7. Return ONLY plain English.
-8. Do NOT use tool calling.
-9. Do NOT return JSON.
-10. Do NOT use function calling.
+                Rules:
+                1. Determine the severity (INFO, WARNING, or CRITICAL).
+                2. Identify the matched_component.
+                3. Provide a clear, technical risk_analysis.
+                4. IMPORTANT: actions_required MUST be a JSON array of individual strings. Never output a single continuous string.
+                
+                Do not include markdown code blocks. Output exactly the requested schema.
 
-OEM MANUAL:
-{context}
-"""
+                OEM MANUAL CONTEXT:
+                {context}
+                """
             ),
             (
                 "user",
                 """Incoming Telemetry:
-{alert}
-"""
+                {alert}
+                """
             )
         ])
 
-        # Use the structured_llm so it dynamically populates the Pydantic schema!
+        # 1. Build the pipeline with the structured LLM
         pipeline = prompt | structured_llm
         
+        # 2. Invoke it
         advisory = pipeline.invoke({
             "context": context_text,
             "alert": telemetry_alert
         })
 
-        print("[NeoAI] Structured output generated successfully!")
+        print("[NeoAI] Structured JSON generated successfully.")
         
+        # 3. Return the fully populated Pydantic object
         return advisory
 
     except Exception as e:
@@ -174,12 +173,12 @@ OEM MANUAL:
 # ============================================================================
 if __name__ == "__main__":
     sample_alert = """
-Component: Battery
-Fault: Cell Over Temperature
-Telemetry:
-Temperature = 72°C
-SOC = 91%
-Voltage = 810V
-"""
+    Component: Battery
+    Fault: thermal_runaway_warning
+    Telemetry:
+    Temperature = 62.99°C
+    SOC = 51.53%
+    Voltage = 1197.58V
+    """
     result = generate_rag_advisory(sample_alert)
     print(json.dumps(result.model_dump(), indent=4))
