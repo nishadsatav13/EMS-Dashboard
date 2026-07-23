@@ -2027,6 +2027,8 @@ elif page == "🔮 Forecast & AI Advisory":
             return val
         return False
 
+    st.error("DEBUG VERSION 12345")
+
     for name, df in components:
         row = get_row(df, location)
 
