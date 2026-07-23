@@ -2010,7 +2010,6 @@ elif page == "🔮 Forecast & AI Advisory":
         ("Transmission Line", tline_df),
     ]
 
-    # Collect all active faults
     # Collect all active faults safely
     active_faults = []
     
@@ -2035,7 +2034,8 @@ elif page == "🔮 Forecast & AI Advisory":
 
         # Create a unique ID for the specific fault so we don't block the whole component forever
         current_fault_name = str(sv(row, "fault_type", sv(row, "fault_code", "Unknown")))
-        fault_id = f"{name}_{current_fault_name}"
+        fault_timestamp = str(sv(row, "timestamp", ""))
+        fault_id = f"{name}_{current_fault_name}_{fault_timestamp}"
 
         # Check if THIS SPECIFIC FAULT was already acknowledged
         if fault_id in st.session_state.acknowledged_faults:
@@ -2049,27 +2049,31 @@ elif page == "🔮 Forecast & AI Advisory":
         # Multiple active faults → let user choose
         if len(active_faults) > 1:
             st.warning("⚠️ Multiple Equipment Faults Detected!")
-            selected_component = st.selectbox(
+            fault_options = {
+                f"{name} • {sv(row, 'fault_type', 'Unknown')}": (name, row, f_id)
+                for name, row, f_id in active_faults
+            }
+
+            selected = st.selectbox(
                 "Select Active Fault for AI Root Cause Analysis:",
-                [name for name, _, _ in active_faults]
+                list(fault_options.keys())
             )
 
-            for name, row, f_id in active_faults:
-                if name == selected_component:
-                    fault_component = name
-                    active_row = row
-                    fault_id_to_clear = f_id
-                    break
+            fault_component, active_row, fault_id_to_clear = fault_options[selected]
         # Only one active fault → select it automatically
         else:
             fault_component, active_row, fault_id_to_clear = active_faults[0]
 
-    # -----------------------------
-    # Fake fault for demo
-    # -----------------------------
-    
-
     # =====================================================
+    st.write("Detected Active Faults:", len(active_faults))
+
+    for name, row, _ in active_faults:
+        st.write(
+            name,
+            sv(row, "fault_type", ""),
+            sv(row, "fault_code", ""),
+            sv(row, "is_fault", "")
+        )
 
     if active_row is None:
         st.session_state.last_fault = None
@@ -2096,11 +2100,11 @@ elif page == "🔮 Forecast & AI Advisory":
             }
         elif fault_component == "PCS":
             telemetry = {
-                "IGBT Temperature (°C)": sv(active_row, "igbt_temperature_c", 0),
-                "Efficiency (%)": sv(active_row, "conversion_efficiency_pct", 0),
+                "Breaker Contact Temperature (°C)": sv(active_row, "breaker_contact_temperature_c", 0),
+                "Contact Resistance (µΩ)": sv(active_row, "contact_resistance_microohm", 0),
+                "Contact Wear (%)": sv(active_row, "contact_wear_index_pct", 0),
                 "Active Power (kW)": sv(active_row, "active_power_kw", 0),
                 "Grid Frequency (Hz)": sv(active_row, "grid_frequency_hz", 0),
-                "DC Bus Voltage (V)": sv(active_row, "dc_bus_voltage_v", 0),
             }
         elif fault_component == "Transformer":
             telemetry = {
@@ -2112,10 +2116,11 @@ elif page == "🔮 Forecast & AI Advisory":
             }
         elif fault_component == "Switchgear":
             telemetry = {
-                "Breaker Position": sv(active_row, "main_breaker_position", ""),
+                "Breaker Status": sv(active_row, "breaker_status", 0),
+                "Contact Temperature (°C)": sv(active_row, "contact_temperature_c", 0),
                 "SF6 Pressure (bar)": sv(active_row, "sf6_gas_pressure_bar", 0),
-                "Partial Discharge (pC)": sv(active_row, "partial_discharge_level_pc", 0),
-                "Contact Wear (%)": sv(active_row, "contact_wear_index_pct", 0),
+                "Partial Discharge (pC)": sv(active_row, "partial_discharge_pc", 0),
+                "Contact Resistance (µΩ)": sv(active_row, "contact_resistance_uohm", 0),
                 "Active Power (kW)": sv(active_row, "active_power_kw", 0),
             }
         elif fault_component == "Transmission Line":
@@ -2171,14 +2176,21 @@ Component:
 Fault:
 {fault_name}
 
-Telemetry:
+Telemetry (Live Measurements):
 {telemetry}
+
+Use ONLY the telemetry provided above.
+Do not invent sensor values.
+If a measurement is unavailable, explicitly mention it.
 
 Provide:
 
-1. Severity
-2. Risk Analysis
-3. Recommended Actions
+1. Root Cause
+2. Severity
+3. Risk Analysis
+4. Recommended Actions
+5. Expected Downtime
+6. Preventive Maintenance Recommendations
 """
                 try:
                     advice = generate_rag_advisory(prompt)
@@ -2193,7 +2205,7 @@ Provide:
         else:
             advice = st.session_state.last_advice
 
-        # Restored the line requested, aligned to the correct indentation level
+        # Safety fallback line sync
         advice = st.session_state.last_advice
         
         st.success("✅ AI analysis completed successfully")
@@ -2217,7 +2229,7 @@ Provide:
         
         st.markdown("---")
 
-    if st.button("✅ Mark Actions Completed"):
+        if st.button("✅ Mark Actions Completed"):
             # Add the unique fault ID to the acknowledged list, not just the component name
             st.session_state.acknowledged_faults.add(fault_id_to_clear)
 
