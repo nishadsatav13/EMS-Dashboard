@@ -2015,14 +2015,17 @@ elif page == "🔮 Forecast & AI Advisory":
     st.write("Acknowledged Faults:", st.session_state.acknowledged_faults)
     
     def is_really_a_fault(r):
+        """Safely parses is_fault regardless of format."""
         if r is None:
             return False
-
         val = sv(r, "is_fault", 0)
-
-        st.write("DEBUG: value =", val, "| type =", type(val))
-
-        return bool(int(val))
+        if isinstance(val, (int, float)):
+            return val > 0
+        if isinstance(val, str):
+            return val.lower() in ["1", "true", "yes", "fault", "1.0"]
+        if isinstance(val, bool):
+            return val
+        return False
 
     for name, df in components:
         row = get_row(df, location)
