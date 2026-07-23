@@ -2009,7 +2009,9 @@ elif page == "🔮 Forecast & AI Advisory":
         ("Transmission Line", tline_df),
     ]
 
-    # Search real faults
+    # Collect all active faults
+    active_faults = []
+
     for name, df in components:
         row = get_row(df, location)
 
@@ -2019,14 +2021,28 @@ elif page == "🔮 Forecast & AI Advisory":
         if int(sv(row, "is_fault", 0)) != 1:
             continue
 
-        fault = str(sv(row, "fault_type", "Unknown"))
-
         if name in st.session_state.acknowledged_faults:
             continue
 
-        fault_component = name
-        active_row = row
-        break
+        active_faults.append((name, row))
+
+    if active_faults:
+        # Only one active fault → select it automatically
+        if len(active_faults) == 1:
+            fault_component, active_row = active_faults[0]
+
+        # Multiple active faults → let user choose
+        else:
+            selected_component = st.selectbox(
+                "Select Active Fault",
+                [name for name, _ in active_faults]
+            )
+
+            for name, row in active_faults:
+                if name == selected_component:
+                    fault_component = name
+                    active_row = row
+                    break
 
     # -----------------------------
     # Fake fault for demo
@@ -2058,6 +2074,38 @@ elif page == "🔮 Forecast & AI Advisory":
                 "Voltage (V)": sv(active_row, "pack_voltage_v", 0),
                 "Power (kW)": sv(active_row, "battery_power_kw", 0),
             }
+        elif fault_component == "PCS":
+            telemetry = {
+                "IGBT Temperature (°C)": sv(active_row, "igbt_temperature_c", 0),
+                "Efficiency (%)": sv(active_row, "conversion_efficiency_pct", 0),
+                "Active Power (kW)": sv(active_row, "active_power_kw", 0),
+                "Grid Frequency (Hz)": sv(active_row, "grid_frequency_hz", 0),
+                "DC Bus Voltage (V)": sv(active_row, "dc_bus_voltage_v", 0),
+            }
+        elif fault_component == "Transformer":
+            telemetry = {
+                "Top Oil Temp (°C)": sv(active_row, "top_oil_temp_c", 0),
+                "Winding Temp (°C)": sv(active_row, "winding_temp_c", 0),
+                "Hotspot Temp (°C)": sv(active_row, "hotspot_temp_c", 0),
+                "Loading (%)": sv(active_row, "transformer_loading_pct", 0),
+                "Efficiency (%)": sv(active_row, "transformer_efficiency_pct", 0),
+            }
+        elif fault_component == "Switchgear":
+            telemetry = {
+                "Breaker Position": sv(active_row, "main_breaker_position", ""),
+                "SF6 Pressure (bar)": sv(active_row, "sf6_gas_pressure_bar", 0),
+                "Partial Discharge (pC)": sv(active_row, "partial_discharge_level_pc", 0),
+                "Contact Wear (%)": sv(active_row, "contact_wear_index_pct", 0),
+                "Active Power (kW)": sv(active_row, "active_power_kw", 0),
+            }
+        elif fault_component == "Transmission Line":
+            telemetry = {
+                "Line Loading (%)": sv(active_row, "line_loading_pct", 0),
+                "Conductor Temp (°C)": sv(active_row, "line_conductor_temperature_c", 0),
+                "Transmission Loss (kW)": sv(active_row, "line_transmission_loss_kw", 0),
+                "Receiving Frequency (Hz)": sv(active_row, "grid_frequency_receiving_end_hz", 0),
+                "Voltage Drop (V)": sv(active_row, "voltage_drop_across_line_v", 0),
+            }
         else:
             telemetry = {}
 
@@ -2086,7 +2134,16 @@ elif page == "🔮 Forecast & AI Advisory":
         if regenerate:
             with st.spinner("Consulting ABB Expert Agent..."):
                 prompt = f"""
-You are an ABB Battery Energy Storage expert.
+You are an ABB BESS Plant Operations Expert.
+
+You are an expert in:
+- Battery Energy Storage Systems
+- Power Conversion Systems (PCS)
+- Distribution Transformers
+- Switchgear
+- Transmission Lines
+
+Analyze the fault using the live telemetry below.
 
 Component:
 {fault_component}
