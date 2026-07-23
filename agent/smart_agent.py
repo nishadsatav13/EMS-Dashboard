@@ -41,9 +41,8 @@ class BESSAdvisorySchema(BaseModel):
 llm = None
 structured_llm = None
 
-if groq_api_key:
-    llm = ChatGroq(
-        model="llama-3.1-8b-instant",
+llm = ChatGroq(
+        model="llama-3.1-70b-versatile",
         api_key=groq_api_key,
         temperature=0.0,
     )
