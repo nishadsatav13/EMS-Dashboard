@@ -2012,6 +2012,7 @@ elif page == "🔮 Forecast & AI Advisory":
 
     # Collect all active faults safely
     active_faults = []
+st.write("Acknowledged Faults:", st.session_state.acknowledged_faults)
     
     def is_really_a_fault(r):
         """Safely parses is_fault regardless of format."""
@@ -2043,12 +2044,20 @@ elif page == "🔮 Forecast & AI Advisory":
         current_fault_name = str(sv(row, "fault_type", sv(row, "fault_code", "Unknown")))
         fault_timestamp = str(sv(row, "timestamp", ""))
         fault_id = f"{name}_{current_fault_name}_{fault_timestamp}"
-
+        
+        st.write(
+            "Checking:",
+            fault_id,
+            "| Acknowledged:",
+            fault_id in st.session_state.acknowledged_faults
+        )
+        
         # Check if THIS SPECIFIC FAULT was already acknowledged
         if fault_id in st.session_state.acknowledged_faults:
             continue
 
         active_faults.append((name, row, fault_id))
+        st.write("APPENDED:", fault_id)
 
     fault_id_to_clear = None
 
