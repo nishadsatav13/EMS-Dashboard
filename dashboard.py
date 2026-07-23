@@ -17,7 +17,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-count = st_autorefresh(interval=10000, key="neoai_refresh")
+# count = st_autorefresh(interval=10000, key="neoai_refresh")
+count = st.sidebar.slider("🛠️ FAST FORWARD (TESTING)", min_value=0, max_value=360, value=0)
 st.session_state.tick = count
 
 # ── Dark theme CSS ────────────────────────────────────────────────────────────
