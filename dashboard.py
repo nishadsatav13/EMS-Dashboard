@@ -2029,6 +2029,13 @@ elif page == "🔮 Forecast & AI Advisory":
     for name, df in components:
         row = get_row(df, location)
 
+        st.write(
+            name,
+            "Tick:", st.session_state.tick,
+            "Fault:", sv(row, "is_fault", "NA"),
+            "Type:", sv(row, "fault_type", "NA")
+        )
+
         if row is None or not is_really_a_fault(row):
             continue
 
