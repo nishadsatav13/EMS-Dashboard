@@ -42,12 +42,12 @@ llm = None
 structured_llm = None
 
 llm = ChatGroq(
-        model="llama-3.1-70b-versatile",
-        api_key=groq_api_key,
-        temperature=0.0,
-    )
+    model="llama-3.1-70b-versatile",
+    api_key=groq_api_key,
+    temperature=0.0,
+)
 
-    structured_llm = llm.with_structured_output(BESSAdvisorySchema)
+structured_llm = llm.with_structured_output(BESSAdvisorySchema)
 
 # ============================================================================
 # Vector Database
@@ -113,26 +113,26 @@ def generate_rag_advisory(telemetry_alert: str) -> BESSAdvisorySchema:
                 "system",
                 """You are the NeoAI Expert Agent for an industrial power plant.
 
-                Use ONLY the retrieved OEM manual context to answer. 
-                If the context does not contain the answer, provide a safe, generic industrial isolation protocol.
+Use ONLY the retrieved OEM manual context to answer. 
+If the context does not contain the answer, provide a safe, generic industrial isolation protocol.
 
-                Rules:
-                1. Determine the severity (INFO, WARNING, or CRITICAL).
-                2. Identify the matched_component.
-                3. Provide a clear, technical risk_analysis.
-                4. IMPORTANT: actions_required MUST be a JSON array of individual strings. Never output a single continuous string.
-                
-                Do not include markdown code blocks. Output exactly the requested schema.
+Rules:
+1. Determine the severity (INFO, WARNING, or CRITICAL).
+2. Identify the matched_component.
+3. Provide a clear, technical risk_analysis.
+4. IMPORTANT: actions_required MUST be a JSON array of individual strings. Never output a single continuous string.
 
-                OEM MANUAL CONTEXT:
-                {context}
-                """
+Do not include markdown code blocks. Output exactly the requested schema.
+
+OEM MANUAL CONTEXT:
+{context}
+"""
             ),
             (
                 "user",
                 """Incoming Telemetry:
-                {alert}
-                """
+{alert}
+"""
             )
         ])
 
