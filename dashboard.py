@@ -2012,7 +2012,7 @@ elif page == "🔮 Forecast & AI Advisory":
 
     # Collect all active faults safely
     active_faults = []
-st.write("Acknowledged Faults:", st.session_state.acknowledged_faults)
+    st.write("Acknowledged Faults:", st.session_state.acknowledged_faults)
     
     def is_really_a_fault(r):
         """Safely parses is_fault regardless of format."""
