@@ -2020,11 +2020,7 @@ elif page == "🔮 Forecast & AI Advisory":
 
         val = sv(r, "is_fault", 0)
 
-        st.write(
-            "DEBUG:",
-            val,
-            type(val)
-        )
+        st.write("DEBUG: value =", val, "| type =", type(val))
 
         return bool(int(val))
 
