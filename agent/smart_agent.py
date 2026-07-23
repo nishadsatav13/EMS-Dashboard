@@ -39,12 +39,16 @@ class BESSAdvisorySchema(BaseModel):
 # Connect to Groq — only if key exists
 # ============================================================================
 llm = None
+structured_llm = None
+
 if groq_api_key:
     llm = ChatGroq(
         model="llama-3.1-8b-instant",
         api_key=groq_api_key,
         temperature=0.0,
     )
+
+    structured_llm = llm.with_structured_output(BESSAdvisorySchema)
 
 # ============================================================================
 # Vector Database — only if folder exists
