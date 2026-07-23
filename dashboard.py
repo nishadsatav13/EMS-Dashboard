@@ -2010,39 +2010,58 @@ elif page == "🔮 Forecast & AI Advisory":
     ]
 
     # Collect all active faults
+    # Collect all active faults safely
     active_faults = []
+    
+    def is_really_a_fault(r):
+        """Safely parses is_fault regardless of format."""
+        if r is None:
+            return False
+        val = sv(r, "is_fault", 0)
+        if isinstance(val, (int, float)):
+            return val > 0
+        if isinstance(val, str):
+            return val.lower() in ["1", "true", "yes", "fault", "1.0"]
+        if isinstance(val, bool):
+            return val
+        return False
 
     for name, df in components:
         row = get_row(df, location)
 
-        if row is None:
+        if row is None or not is_really_a_fault(row):
             continue
 
-        if int(sv(row, "is_fault", 0)) != 1:
+        # Create a unique ID for the specific fault so we don't block the whole component forever
+        current_fault_name = str(sv(row, "fault_type", sv(row, "fault_code", "Unknown")))
+        fault_id = f"{name}_{current_fault_name}"
+
+        # Check if THIS SPECIFIC FAULT was already acknowledged
+        if fault_id in st.session_state.acknowledged_faults:
             continue
 
-        if name in st.session_state.acknowledged_faults:
-            continue
+        active_faults.append((name, row, fault_id))
 
-        active_faults.append((name, row))
+    fault_id_to_clear = None
 
     if active_faults:
-        # Only one active fault → select it automatically
-        if len(active_faults) == 1:
-            fault_component, active_row = active_faults[0]
-
         # Multiple active faults → let user choose
-        else:
+        if len(active_faults) > 1:
+            st.warning("⚠️ Multiple Equipment Faults Detected!")
             selected_component = st.selectbox(
-                "Select Active Fault",
-                [name for name, _ in active_faults]
+                "Select Active Fault for AI Root Cause Analysis:",
+                [name for name, _, _ in active_faults]
             )
 
-            for name, row in active_faults:
+            for name, row, f_id in active_faults:
                 if name == selected_component:
                     fault_component = name
                     active_row = row
+                    fault_id_to_clear = f_id
                     break
+        # Only one active fault → select it automatically
+        else:
+            fault_component, active_row, fault_id_to_clear = active_faults[0]
 
     # -----------------------------
     # Fake fault for demo
@@ -2197,14 +2216,14 @@ Provide:
         
         st.markdown("---")
 
-        if st.button("✅ Mark Actions Completed"):
-            st.session_state.acknowledged_faults.add(fault_component)
+    if st.button("✅ Mark Actions Completed"):
+            # Add the unique fault ID to the acknowledged list, not just the component name
+            st.session_state.acknowledged_faults.add(fault_id_to_clear)
 
             st.session_state.last_fault = None
             st.session_state.last_advice = None
 
             st.success("Fault acknowledged. Monitoring next fault...")
-
             st.rerun()
 
     # Footer elements shown regardless of fault status
