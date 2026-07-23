@@ -140,20 +140,17 @@ OEM MANUAL:
             )
         ])
 
-        pipeline = prompt | llm
-        response = pipeline.invoke({
+        # Use the structured_llm so it dynamically populates the Pydantic schema!
+        pipeline = prompt | structured_llm
+        
+        advisory = pipeline.invoke({
             "context": context_text,
             "alert": telemetry_alert
         })
 
-        print(response.content)
-
-        return BESSAdvisorySchema(
-            severity="INFO",
-            matched_component="TEST",
-            risk_analysis=response.content,
-            actions_required=["Generated successfully"]
-        )
+        print("[NeoAI] Structured output generated successfully!")
+        
+        return advisory
 
     except Exception as e:
         print("\n==============================")
